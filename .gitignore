@@ -1,0 +1,31 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.env/
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Model cache (large files)
+*.safetensors
+*.ckpt
+*.bin
+
+# Output images
+output/
+*.png
+*.jpg
+*.jpeg
+!assets/*.png

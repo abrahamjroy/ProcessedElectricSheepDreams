@@ -1,0 +1,21 @@
+# Z-Image Turbo - Dependencies
+# Python 3.10+ required
+
+# Core ML Framework
+torch>=2.0.0
+torchvision
+
+# Diffusion Models
+diffusers>=0.25.0
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# SDNQ Quantization
+sdnq
+
+# Image Processing
+pillow>=10.0.0
+numpy
+
+# GUI Framework
+ttkbootstrap>=1.10.0
