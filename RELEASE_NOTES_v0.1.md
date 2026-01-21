@@ -47,4 +47,4 @@ The launcher will automatically:
 ## Known Limitations
 
 - Initial startup is slow due to model download.
-- Image height/width must be divisible by 16.
+- Image height/width must be divisible by 16. But is accounted for in the Adjustment of Dimensions.

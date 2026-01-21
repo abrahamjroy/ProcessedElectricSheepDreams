@@ -32,6 +32,11 @@ Sample images generated with Processed Electric Sheep Dreams:
     <td><img src="assets/gallery_5.png" width="200"/></td>
     <td><img src="assets/gallery_4.png" width="200"/></td>
   </tr>
+  <tr>
+    <td><img src="assets/Watercolor.png" width="200"/><br><i>Watercolor Art</i></td>
+    <td><img src="assets/Bowls.png" width="200"/><br><i>Crystal Bowls</i></td>
+    <td></td>
+  </tr>
 </table>
 
 ---
