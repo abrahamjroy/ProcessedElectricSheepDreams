@@ -32,10 +32,26 @@ Sample images generated with Processed Electric Sheep Dreams:
     <td><img src="assets/gallery_5.png" width="200"/></td>
     <td><img src="assets/gallery_4.png" width="200"/></td>
   </tr>
+</table>
+
+### Showcase with Prompts
+
+<table>
   <tr>
-    <td><img src="assets/Watercolor.png" width="200"/><br><i>Watercolor Art</i></td>
-    <td><img src="assets/Bowls.png" width="200"/><br><i>Crystal Bowls</i></td>
-    <td></td>
+    <td width="300"><img src="assets/Watercolor.png" width="300"/></td>
+    <td><i>"Kagekiyachi art style., watercolor urban street scene featuring a vintage red tram gliding along wet cobblestone tracks under autumnal yellow trees; intricate overhead wires crisscross above historic European buildings with ornate facades and a spired tower in the background; pedestrians stroll leisurely on sidewalks lined with lampposts and shop awnings; soft diffused light casts gentle shadows across the scene, evoking nostalgic charm reminiscent of early 20th-century city life rendered with delicate brushstrokes, warm earth tones, and subtle texture blending characteristic of Akiya Kageichi's aesthetic."</i></td>
+  </tr>
+  <tr>
+    <td width="300"><img src="assets/Bowls.png" width="300"/></td>
+    <td><i>"The image is a Polaroid photograph featuring a stack of colorful bowls and a spoon on a wooden table.
+
+The main subject is a stack of four bowls, each of a different color. From top to bottom, the bowls are yellow, orange, green, blue, and red. The colors are solid and vibrant, giving a retro feel to the image. A silver spoon rests inside the top yellow bowl, with the handle extending diagonally towards the top left.
+
+The bowls are centered in the frame, taking up a significant portion of the image. They are positioned on a dark, wooden table. The table's wood grain is visible, adding texture and warmth to the scene. The composition is simple, with the bowls being the primary focus.
+
+In the background, there is a hint of the surrounding environment. To the left, a dark wooden chair is partially visible. To the right, a folded napkin or piece of cloth is seen. The walls appear to be a neutral color, likely cream or light gray. The lighting seems to be soft and indirect, casting gentle shadows. There are some light reflections across the background suggesting a window or other light source.
+
+The image has a vintage aesthetic, due to the Polaroid format with the characteristic white border. The date "21/01/26" is hand written at the bottom right corner of the border, reinforcing the sense of nostalgia. The overall mood is calm and inviting, with the bright colors of the bowls creating a cheerful atmosphere.medium film grain"</i></td>
   </tr>
 </table>
 
