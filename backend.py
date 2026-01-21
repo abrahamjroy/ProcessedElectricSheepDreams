@@ -6,6 +6,7 @@ Supports Text-to-Image, Image-to-Image, and Inpainting modes.
 
 import torch
 import diffusers
+import triton
 from sdnq.common import use_torch_compile as triton_is_available
 from sdnq.loader import apply_sdnq_options_to_model
 from PIL import Image
