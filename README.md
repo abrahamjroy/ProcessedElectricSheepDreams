@@ -1,6 +1,40 @@
 # Processed Electric Sheep Dreams
 
-A native desktop application for fast AI image generation using a highly optimized Z-Image-Turbo model with SDNQ quantization. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing. With accurate text and subject rendering. Includes a MOAP (Mother of All (negative) Prompts) for better rendering.
+![Version](https://img.shields.io/badge/version-0.1-green?style=for-the-badge&logo=none)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
+![Platform](https://img.shields.io/badge/platform-windows-blue?style=for-the-badge&logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-purple?style=for-the-badge)
+
+A native desktop application for fast AI image generation using a highly optimized Z-Image-Turbo model with SDNQ quantization. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing.
+```mermaid
+graph TD
+    User[User Input] --> |Prompt & Settings| App[Desktop UI]
+    App --> |Load| VN[VRAM Negotiator]
+    VN --> |Optimized| Pipeline[Z-Image-Turbo Pipeline]
+    
+    subgraph "Neural Engine"
+    Pipeline --> |SDNQ Quantization| UNet[UNet Model]
+    Pipeline --> |Masking| Inpaint[Inpainting Logic]
+    end
+    
+    UNet --> |Latents| VAE[VAE Decoder]
+    VAE --> |Raw Image| Upscaler[Swin2SR Upscaler]
+    Upscaler --> |Final Output| Gallery[Result View]
+```
+
+With accurate text and subject rendering. Includes a MOAP (Mother of All (negative) Prompts) for better rendering.
+
+---
+
+## ⌨️ Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `Enter` | Trigger generation (when in prompt box) |
+| `Ctrl+S` | Save generated image |
+| `Ctrl+C` | Copy prompt to clipboard |
+| `Esc` | Cancel current generation |
+| `Scroll` | Zoom in/out of viewport |
 
 ---
 
