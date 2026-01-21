@@ -1,6 +1,6 @@
 # Processed Electric Sheep Dreams
 
-A native desktop application for AI image generation using a highly optimized Z-Image-Turbo model with SDNQ quantization. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing.
+A native desktop application for fast AI image generation using a highly optimized Z-Image-Turbo model with SDNQ quantization. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing. With accurate text and subject rendering. Includes a MOAP (Mother of All (negative) Prompts) for better rendering.
 
 ---
 
@@ -24,13 +24,13 @@ Sample images generated with Processed Electric Sheep Dreams:
 <table>
   <tr>
     <td><img src="assets/gallery_1.png" width="200"/></td>
-    <td><img src="assets/gallery_2.jpg" width="200"/></td>
-    <td><img src="assets/gallery_3.jpg" width="200"/></td>
+    <td><img src="assets/gallery_2.png" width="200"/></td>
+    <td><img src="assets/gallery_3.png" width="200"/></td>
   </tr>
   <tr>
-    <td><img src="assets/gallery_4.jpg" width="200"/></td>
-    <td><img src="assets/gallery_5.jpg" width="200"/></td>
-    <td></td>
+    <td><img src="assets/gallery_6.png" width="200"/></td>
+    <td><img src="assets/gallery_5.png" width="200"/></td>
+    <td><img src="assets/gallery_4.png" width="200"/></td>
   </tr>
 </table>
 
@@ -96,6 +96,18 @@ pip install -r requirements.txt
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
+
+---
+
+## Quick Start (Windows)
+
+For the easiest experience, just double-click **Launch.bat**. It will:
+1. Check for Python installation
+2. Create a virtual environment (first run only)
+3. Install all dependencies (first run only)
+4. Launch the application
+
+> **Note:** First launch takes several minutes to set up. Subsequent launches are fast.
 
 ---
 
