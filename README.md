@@ -87,6 +87,10 @@ In the background, there is a hint of the surrounding environment. To the left, 
 
 The image has a vintage aesthetic, due to the Polaroid format with the characteristic white border. The date "21/01/26" is hand written at the bottom right corner of the border, reinforcing the sense of nostalgia. The overall mood is calm and inviting, with the bright colors of the bowls creating a cheerful atmosphere.medium film grain"</i></td>
   </tr>
+  <tr>
+    <td width="300"><img src="assets/Portrait.jpg" width="300"/></td>
+    <td><i>"A contemplative black and white studio portrait features an elderly man with a bald head and a prominent, full white beard. His eyes are open or deeply downcast, suggesting introspection or serene rest. He is attired in a dark, possibly black, finely knit sweater with discernible texture. A slender, light-furred cat, exhibiting subtle tabby patterns, is comfortably draped across his shoulders and neck. The cat's head is lowered, resting gently on the man's left shoulder, its gaze directed downwards. The lighting is soft and diffused, creating subtle shadows that enhance the contours of their faces and the textures of the man's beard and sweater. The background is a smooth, undifferentiated medium grey, providing a minimalist and timeless backdrop. The composition captures an intimate and tranquil moment, emphasizing the gentle bond between the man and the cat within a classic photographic aesthetic."</i><br><br>![Stats](https://img.shields.io/badge/2x%20Upscaled-22%20Sec%20Gen-blue?style=for-the-badge)</td>
+  </tr>
 </table>
 
 ---

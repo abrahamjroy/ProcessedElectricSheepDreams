@@ -110,6 +110,23 @@ class ZImageApp(ttk.Window):
         # Main Input (Shared)
         ttk.Label(controls_frame, text="CREATIVE VISION", font=("Consolas", 10, "bold"), foreground="#00cc00").pack(anchor="w")
         
+        # Style Preset Selection (New)
+        self.style_var = tk.StringVar(value="No Style Preset")
+        style_frame = ttk.Frame(controls_frame)
+        style_frame.pack(fill=X, pady=(5, 0))
+        
+        self.style_combo = ttk.Combobox(style_frame, textvariable=self.style_var, values=[
+            "No Style Preset",
+            "Style: Cinematic (Dramatic Lighting)",
+            "Style: Anime/Manga (Vibrant 2D)",
+            "Style: Digital Art (Polished)",
+            "Style: Oil Painting (Textured)",
+            "Style: Cyberpunk (Neon/Tech)",
+            "Style: Vintage Photo (Film Grain)",
+            "Style: 3D Render (Octane/Unreal)"
+        ], state="readonly", bootstyle="dark", font=("Consolas", 9))
+        self.style_combo.pack(fill=X)
+        
         # Prompt input with scrollbar
         prompt_frame = ttk.Frame(controls_frame)
         prompt_frame.pack(fill=X, pady=(5, 20))
@@ -196,6 +213,7 @@ class ZImageApp(ttk.Window):
             "Preset: Photography Cleanup",
             "Preset: Illustration Cleanup",
             "Preset: NSFW Safety",
+            "Preset: Artistic Enhancer (Anti-Realism)",
             "Preset: AIO (Anti-Digital/Realism)"
         ], state="readonly", bootstyle="dark")
         self.neg_presets.current(0)
@@ -252,16 +270,23 @@ class ZImageApp(ttk.Window):
         # Dice Button
         ttk.Button(seed_frame, text="🎲", width=3, command=self.roll_dice, bootstyle="secondary-outline").pack(side=LEFT, padx=(5,0))
 
-        # Bottom Actions moved to footer_frame
-        # Upscale Toggle
-        self.upscale_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(footer_frame, text="ENABLE AI UPSCALING (2x)", variable=self.upscale_var, bootstyle="info-round-toggle").pack(pady=(10, 0))
-
-        self.generate_btn = ttk.Button(footer_frame, text=">> INITIATE RENDER <<", command=self.start_generation, state=DISABLED, bootstyle="light-outline")
-        self.generate_btn.pack(fill=X, pady=10, ipady=10)
-        
-        self.status_lbl = ttk.Label(footer_frame, textvariable=self.status_var, font=("Consolas", 9), foreground="#00ff00")
+        # Status Label
+        self.status_lbl = ttk.Label(footer_frame, textvariable=self.status_var, wraplength=350, justify=CENTER, font=("Consolas", 9), foreground="#00aa00")
         self.status_lbl.pack(fill=X, pady=(0, 10))
+        
+        # Generate Button
+        self.generate_btn = ttk.Button(footer_frame, text="⚡ GENERATE DREAM ⚡", command=self.start_generation, state=DISABLED, bootstyle="success")
+        self.generate_btn.pack(fill=X, pady=(0, 5))
+        
+        # Action Row (Save + Upscale)
+        action_row = ttk.Frame(footer_frame)
+        action_row.pack(fill=X)
+        
+        self.save_btn = ttk.Button(action_row, text="💾 SAVE", command=self.save_image, state=DISABLED, bootstyle="secondary-outline")
+        self.save_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 2))
+        
+        self.upscale_btn = ttk.Button(action_row, text="🔍 UPSCALE 2x", command=self.upscale_action, state=DISABLED, bootstyle="info-outline")
+        self.upscale_btn.pack(side=LEFT, fill=X, expand=True, padx=(2, 0))
 
         # --- Viewport (Right) ---
         viewport_frame = ttk.Frame(main_pane) 
@@ -438,6 +463,7 @@ class ZImageApp(ttk.Window):
             "Preset: Photography Cleanup": "cartoon, illustration, painting, drawing, sketch, anime, 3d render, cgi, artwork, digital art, worst quality, low quality, blurry, pixelated, grainy, jpeg artifacts, deformed, disfigured, bad anatomy, bad hands, extra limbs, missing limbs, extra fingers, text, watermark, signature, cropped, out of frame",
             "Preset: Illustration Cleanup": "photorealistic, realistic, 3d, cgi, bad anatomy, bad hands, extra digits, missing fingers, worse quality, low quality, blurry, jpeg artifacts, compression artifacts, watermark, text, error, signature, username, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name",
             "Preset: NSFW Safety": "nsfw, nude, naked, sexual, gory, violence, blood, injuries",
+            "Preset: Artistic Enhancer (Anti-Realism)": "photorealistic, realistic, 3d render, cgi, 8k, high definition, photography, photo, camera, lens, raw photo, digital art, shiny, glossy, plastic, octane render, unreal engine, smooth, polished, perfectly detailed, sharp focus, hdr, hyperrealistic",
             "Preset: AIO (Anti-Digital/Realism)": "动漫风, 二次元, 漫画风, 插画风, 卡通风, Q版, 手绘风, 水彩画, 素描风, 线稿, 草图, 写实油画, 油画风, 版画风, 像素画, pixel art, 点阵画, low poly, voxel, blueprint, 线框图, 3D渲染, 3D模型, CG渲染, CG风格, 游戏模型, 游戏角色, 虚拟形象, vtuber风, VTuber风, cyberpunk, 赛博朋克风, vaporwave, synthwave, glitch art, 赛博风, 霓虹赛博朋克风, 低清晰度, 低分辨率, 模糊, 虚焦, 对焦失败, 失焦, 失真, 噪点严重, 过度噪点, JPEG伪影, 压缩伪影, 过度压缩, 拉丝伪影, 色彩溢出, 颜色断层, 偏色严重, 过度锐化, 过度降噪, 过度HDR, HDR风, 光晕, 爆边, 过曝高光, 死黑阴影, 轮廓发光, 边缘发光, 锯齿, 粗糙细节, 光影不真实, 不真实反射, 不真实光影, 网红脸, AI网红脸, 网红模板脸, 模板脸, 默认人脸模板, 默认风格人脸, 千人一面, 千篇一律的脸, 同一张脸, 统一脸型, 统一五官, 标准化脸, 完美对称脸, 黄金比例脸, 完美无瑕的脸, 硬凹精致脸, 假精致脸, 统一瓜子脸, 统一尖下巴, 统一高鼻梁, 统一双眼皮, 娃娃脸, Barbie脸, 假娃娃脸, 过度少女感脸, 不自然幼态脸, 统一女神脸, 神仙颜值模板, 美颜滤镜, 过度磨皮, 磨皮过度, 磨皮滤镜, 磨皮皮肤, 玻璃皮, 玻璃皮肤, 瓷娃娃皮肤, “完美皮肤”, 过度美白, 过曝高光在皮肤上, 失真皮肤, 不真实皮肤纹理, 虚假皮肤纹理, 塑料质感皮肤, 蜡像脸, 假脸, 假皮肤, 过度修图, 过度液化, 液化变形, 修图痕迹, 过度瘦脸, 过度尖脸, 过度大眼, 不真实五官比例, 不真实头身比, 不自然身体比例, PS痕迹明显, 过度滤镜, 影楼风, 写真棚风, 写真棚打光, 影楼精修, “精修大片”, 棚拍大片, 棚拍大片风, 杂志封面风, 时尚杂志棚拍风, glamour, idol poster, idol promo, KOL头像, KOL风, 主播脸, 直播脸, 直播间滤镜, 广告硬照, 强烈商业广告感, 商业图库模板风, 过度时尚大片感, 夸张棚拍感, 过度高级感, 统一海报风, 通用广告模特感, 自拍风, 自拍感, 自拍杆视角, 手机前置摄像头, 过近广角畸变, 大头畸变, 鱼眼畸变, 超广角畸变, 高举手机俯拍, 低角度仰拍夸张畸变, 直播滤镜, 自拍滤镜, 美颜相机, 网红自拍, 自拍美颜, 抖音滤镜, 快手滤镜, 社交平台网红滤镜, 统一网红自拍模板, stock photo, 库存照片感, 典型stock photo, 通用图库模特, 商业图库风, 千篇一律图库模特, 过于刻意的摆拍, 僵硬姿势, 僵硬表情, 塑料笑容, 假笑, 虚假的表情, 僵尸脸, 僵硬的眼神, 过度摆拍姿势, 统一姿势, 重复姿势, 统一构图, 广告模板, 通用海报背景, 通用广告背景, template background, AI感很强, 一眼看出是AI图, 人工痕迹, 不自然, 虚假背景, 假景深, 过度景深虚化, 背景乱糟糟, 低质量, 低细节, 草率细节, 不真实, 非照片, 非摄影, 非自然光, 假光源, 不自然高光, 过度锐化线条, 轮廓过硬, 边缘过硬, 轮廓不干净, 噪点块状感, 模拟风格而不是实际照片"
         }
         if selection in presets:
@@ -514,26 +540,31 @@ class ZImageApp(ttk.Window):
             "preserve_edges": self.preserve_edges_var.get() if hasattr(self, 'preserve_edges_var') else False
         }
         
-        # Pass a flag or just check a checkbox variable if we added one. 
-        # Ideally we'd add an Upscale checkbox.
-        # Let's check self.upscale_var if it exists, implementing UI for it below.
-        do_upscale = self.upscale_var.get() if hasattr(self, 'upscale_var') else False
+        if hasattr(self, 'style_var'):
+            style = self.style_var.get()
+            if style != "No Style Preset":
+                styles_map = {
+                    "Style: Cinematic (Dramatic Lighting)": "cinematic shot, dramatic lighting, movie scene, 8k, highly detailed, color graded",
+                    "Style: Anime/Manga (Vibrant 2D)": "anime style, manga style, vibrant colors, studio ghibli, makoto shinkai, 2d, illustration",
+                    "Style: Digital Art (Polished)": "digital art, concept art, trending on artstation, highly detailed, sharp focus, smooth",
+                    "Style: Oil Painting (Textured)": "oil painting, thick brushstrokes, canvas texture, impressionist, traditional art",
+                    "Style: Cyberpunk (Neon/Tech)": "cyberpunk, neon lights, futuristic, sci-fi, high tech, dark atmosphere, glowing",
+                    "Style: Vintage Photo (Film Grain)": "vintage photograph, film grain, analog style, polaroid, faded colors, retro",
+                    "Style: 3D Render (Octane/Unreal)": "3d render, octane render, unreal engine 5, ray tracing, physically based rendering"
+                }
+                if style in styles_map:
+                    params["prompt"] = f"{params['prompt']}, {styles_map[style]}"
+
+        threading.Thread(target=self.run_generation, args=(params,), daemon=True).start()
         
-        threading.Thread(target=self.run_generation, args=(params, do_upscale), daemon=True).start()
-        
-    def run_generation(self, params, do_upscale=False):
+    def run_generation(self, params):
         try:
             image = self.generator.generate(**params)
-            
-            if do_upscale:
-                self.after(0, lambda: self.status_var.set("Upscaling 2x (Swin2SR)..."))
-                image = self.generator.upscale_image(image)
-                
             self.generated_image = image
             self.after(0, self.display_image, image)
-            self.after(0, lambda: self.status_var.set("Rendering & Upscaling Complete." if do_upscale else "Rendering Complete."))
+            self.after(0, lambda: self.status_var.set("Rendering Complete."))
         except Exception as e:
-            error_msg = str(e)  # Capture immediately
+            error_msg = str(e)
             self.after(0, lambda msg=error_msg: self.status_var.set(f"Error: {msg}"))
             print(f"Gen Error: {e}")
         finally:
@@ -555,13 +586,79 @@ class ZImageApp(ttk.Window):
         self.canvas.delete("all")
         self.canvas.create_image(c_width//2, c_height//2, image=self.tk_image, anchor=CENTER)
         self.save_btn.configure(state=NORMAL)
+        if hasattr(self, 'upscale_btn'):
+            self.upscale_btn.configure(state=NORMAL)
 
     def save_image(self):
         if self.generated_image:
-            path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG", "*.png")])
+            # Generate default filename from prompt
+            raw_prompt = self.prompt_text.get("1.0", tk.END).strip()
+            # Extract first 2 words, sanitize
+            words = re.findall(r'\w+', raw_prompt)[:2]
+            filename = "_".join(words) if words else "generated_image"
+            
+            path = filedialog.asksaveasfilename(
+                defaultextension=".png", 
+                filetypes=[("PNG", "*.png")],
+                initialfile=f"{filename}.png"
+            )
             if path:
                 self.generated_image.save(path)
                 messagebox.showinfo("Saved", f"Image saved to {path}")
+
+    def upscale_action(self):
+        if not self.generated_image: return
+        self.upscale_btn.configure(state=DISABLED)
+        self.status_var.set("Upscaling Image (2x)... Please wait.")
+        
+        def run_upscale():
+            try:
+                upscaled = self.generator.upscale_image(self.generated_image)
+                
+                # Update UI in main thread
+                def update_ui():
+                    self.generated_image = upscaled
+                    self.display_image(self.generated_image)
+                    self.status_var.set("Upscale Complete!")
+                    self.upscale_btn.configure(state=NORMAL)
+                    
+                self.after(0, update_ui)
+                
+            except Exception as e:
+                def show_error():
+                    self.status_var.set(f"Upscale Error: {e}")
+                    messagebox.showerror("Error", str(e))
+                    self.upscale_btn.configure(state=NORMAL)
+                self.after(0, show_error)
+        
+        threading.Thread(target=run_upscale, daemon=True).start()
+
+    def upscale_action(self):
+        if not self.generated_image: return
+        self.upscale_btn.configure(state=DISABLED)
+        self.status_var.set("Upscaling Image (2x)... Please wait.")
+        
+        def run_upscale():
+            try:
+                upscaled = self.generator.upscale_image(self.generated_image)
+                
+                # Update UI in main thread
+                def update_ui():
+                    self.generated_image = upscaled
+                    self.display_image(self.generated_image)
+                    self.status_var.set("Upscale Complete!")
+                    self.upscale_btn.configure(state=NORMAL)
+                    
+                self.after(0, update_ui)
+                
+            except Exception as e:
+                def show_error():
+                    self.status_var.set(f"Upscale Error: {e}")
+                    messagebox.showerror("Error", str(e))
+                    self.upscale_btn.configure(state=NORMAL)
+                self.after(0, show_error)
+        
+        threading.Thread(target=run_upscale, daemon=True).start()
 
 if __name__ == "__main__":
     app = ZImageApp()

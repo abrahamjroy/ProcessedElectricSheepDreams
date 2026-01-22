@@ -107,7 +107,7 @@ class ImageGenerator:
         
         # Img2Img mode: image without mask
         elif image:
-            return self._generate_img2img(args, image, width, height, strength)
+            return self._generate_img2img(args, image, width, height, strength, color_match, preserve_edges)
         
         # Text-to-Image mode: no source image
         else:
@@ -115,16 +115,33 @@ class ImageGenerator:
             args["height"] = height
             return self.pipe(**args).images[0]
 
-    def _generate_img2img(self, args, image, width, height, strength):
+    def _generate_img2img(self, args, image, width, height, strength, color_match=False, preserve_edges=False):
         """Handle Image-to-Image generation."""
         if not hasattr(self, 'img2img_pipe'):
             print("Initializing Img2Img Pipeline...")
             from diffusers import AutoPipelineForImage2Image
             self.img2img_pipe = AutoPipelineForImage2Image.from_pipe(self.pipe)
         
-        args["image"] = image.resize((width, height), Image.LANCZOS)
+        # Resize source
+        resized_source = image.resize((width, height), Image.LANCZOS)
+        
+        args["image"] = resized_source
         args["strength"] = strength
-        return self.img2img_pipe(**args).images[0]
+        
+        # Generate
+        generated = self.img2img_pipe(**args).images[0]
+        
+        # Create full mask for post-processing logic (white = all changed, used to apply uniform effect)
+        full_mask = Image.new("L", (width, height), 255)
+        
+        # Apply Post-Processing
+        if preserve_edges:
+            generated = self._apply_edge_preservation(resized_source, generated, full_mask)
+            
+        if color_match:
+            generated = self._apply_color_match(resized_source, generated, full_mask)
+            
+        return generated
 
     def _generate_inpaint(self, args, image, mask_image, width, height, 
                           strength, color_match, blend_edges, preserve_edges):
@@ -172,7 +189,7 @@ class ImageGenerator:
         edge_arr = np.array(edges).astype(np.float32) / 255.0
         mask_arr = np.array(mask).astype(np.float32) / 255.0
         
-        edge_strength = 0.3
+        edge_strength = 0.15
         for c in range(3):
             edge_effect = edge_arr * edge_strength * mask_arr
             gen_arr[:, :, c] = gen_arr[:, :, c] * (1 - edge_effect * 0.3)
