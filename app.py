@@ -40,6 +40,94 @@ class ToggledFrame(ttk.Frame):
             self.sub_frame.forget()
             self.toggle_btn.configure(text='+')
 
+            self.toggle_btn.configure(text='+')
+            
+# --- Custom KITT Scanner Widget ---
+class KITTScroller(tk.Canvas):
+    def __init__(self, parent, height=6, bg="#000000", **kwargs):
+        super().__init__(parent, height=height, bg=bg, highlightthickness=0, **kwargs)
+        self.width = 0
+        self.cells = []
+        self.num_cells = 40
+        self.cell_width = 0
+        self.head_pos = 0
+        self.direction = 1
+        self.running = False
+        self.delay = 35 # ms per frame (approx 30fps)
+        
+        # Colors: Bright Red -> Med -> Dark -> Black
+        self.colors = ["#ff0000", "#cc0000", "#990000", "#660000", "#330000", "#000000"]
+        
+        self.bind("<Configure>", self.on_resize)
+        
+    def on_resize(self, event):
+        self.width = event.width
+        self.cell_width = self.width / self.num_cells
+        self.init_cells()
+        
+    def init_cells(self):
+        self.delete("all")
+        self.cells = []
+        h = int(self["height"])
+        
+        for i in range(self.num_cells):
+            x1 = i * self.cell_width
+            x2 = x1 + self.cell_width - 1 # 1px gap
+            rect = self.create_rectangle(x1, 0, x2, h, fill="#000000", outline="")
+            self.cells.append(rect)
+            
+    def start(self):
+        if not self.running:
+            self.running = True
+            self.animate()
+            
+    def stop(self):
+        self.running = False
+        # Clear lights
+        for cell in self.cells:
+            self.itemconfig(cell, fill="#000000")
+            
+    def animate(self):
+        if not self.running: return
+        
+        # Fade Logic:
+        # Instead of strict trail, we calculate distance from head
+        # This allows for a perfect "comet" tail
+        
+        for i, cell in enumerate(self.cells):
+            dist = abs(self.head_pos - i)
+            # Leading edge sharp, trailing edge fade
+            # But simpler: just render head and N neighbors with fading colors
+            
+            color = "#000000"
+            if i == self.head_pos:
+                color = self.colors[0]
+            elif i == self.head_pos - self.direction: # Immediate trailing
+                color = self.colors[1]
+            elif i == self.head_pos - (2 * self.direction):
+                color = self.colors[2]
+            elif i == self.head_pos - (3 * self.direction):
+                color = self.colors[3]
+            elif i == self.head_pos - (4 * self.direction):
+                color = self.colors[4]
+                
+            # Keep previous colors (fade effect) - actually simple cycle is safer
+            # Let's just redraw based on checking array indices to avoid flicker
+            
+            self.itemconfig(cell, fill=color)
+            
+        # Move head
+        self.head_pos += self.direction
+        
+        # bounce
+        if self.head_pos >= self.num_cells - 1:
+            self.direction = -1
+        elif self.head_pos <= 0:
+            self.direction = 1
+            
+        self.after(self.delay, self.animate)
+
+
 class ZImageApp(ttk.Window):
     def __init__(self, stealth_mode=False):
         # "cyborg" is a dark theme, we will customize further for AMOLED
@@ -66,6 +154,7 @@ class ZImageApp(ttk.Window):
         self.generator = None
         self.generated_image = None
         self.source_image = None # For Img2Img
+
         
         # Initialize status var early for threading
         self.status_var = tk.StringVar(value="[SYSTEM] Booting Neural Core...")
@@ -308,8 +397,11 @@ class ZImageApp(ttk.Window):
         self.save_btn.place(relx=0.95, rely=0.95, anchor="se")
         
         # Progress Bar Overlay (Thin line at top of viewport)
-        # "danger" bootstyle gives the KITT-like Red color
-        self.progress = ttk.Progressbar(viewport_frame, mode='indeterminate', bootstyle="danger", length=300)
+        # Standard determinate bar (Green/Default) for generation steps
+        self.progress = ttk.Progressbar(viewport_frame, mode='determinate', bootstyle="success", length=300)
+        
+        # Custom KITT Scanner for indeterminate waits (Upscaling, Loading)
+        self.kitt_scanner = KITTScroller(viewport_frame, height=4)
 
     def on_dimension_change(self, which):
         # Prevent recursion loop
@@ -599,6 +691,8 @@ class ZImageApp(ttk.Window):
     def reset_ui(self):
         self.progress.stop()
         self.progress.place_forget()
+        self.kitt_scanner.stop()
+        self.kitt_scanner.place_forget()
         self.generate_btn.configure(state=NORMAL)
 
     def display_image(self, image):
@@ -671,10 +765,9 @@ class ZImageApp(ttk.Window):
         self.status_var.set("Upscaling Image (2x)... Please wait.")
         
         # Show indeterminate progress for upscaling
-        # KITT effect: Red bouncing bar (danger style)
-        self.progress.configure(mode='indeterminate', bootstyle="danger")
-        self.progress.place(relx=0, rely=0, relwidth=1)
-        self.progress.start(40) # Slower speed for that "scanning" look
+        # KITT effect: Custom Canvas Widget
+        self.kitt_scanner.place(relx=0, rely=0, relwidth=1)
+        self.kitt_scanner.start()
         
         def run_upscale():
             try:
@@ -686,8 +779,8 @@ class ZImageApp(ttk.Window):
                     self.display_image(self.generated_image)
                     self.status_var.set("Upscale Complete!")
                     self.upscale_btn.configure(state=NORMAL)
-                    self.progress.stop()
-                    self.progress.place_forget()
+                    self.kitt_scanner.stop()
+                    self.kitt_scanner.place_forget()
                     
                 self.after(0, update_ui)
                 
@@ -696,8 +789,8 @@ class ZImageApp(ttk.Window):
                     self.status_var.set(f"Upscale Error: {e}")
                     messagebox.showerror("Error", str(e))
                     self.upscale_btn.configure(state=NORMAL)
-                    self.progress.stop()
-                    self.progress.place_forget()
+                    self.kitt_scanner.stop()
+                    self.kitt_scanner.place_forget()
                 self.after(0, show_error)
         
         threading.Thread(target=run_upscale, daemon=True).start()
