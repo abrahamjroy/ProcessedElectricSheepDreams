@@ -121,7 +121,6 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 - **2x AI Upscaling**: Integrated Swin2SR for high-quality resolution boosting
 - **Invisible Watermarking**: Embeds invisible SynthID-like signatures for authenticity (contains optional Device ID)
 - **Metadata Embedding**: Full generation parameters (Prompt, Seed, Steps, Guidance) stored directly in PNG files
-- **Stealth Mode**: Launch with `--TopSecret` to disable device fingerprinting in watermarks
 - **TF32 Acceleration**: Enabled on Ampere+ GPUs for faster inference
 
 ---
