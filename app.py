@@ -308,7 +308,8 @@ class ZImageApp(ttk.Window):
         self.save_btn.place(relx=0.95, rely=0.95, anchor="se")
         
         # Progress Bar Overlay (Thin line at top of viewport)
-        self.progress = ttk.Progressbar(viewport_frame, mode='indeterminate', bootstyle="light", length=300)
+        # "danger" bootstyle gives the KITT-like Red color
+        self.progress = ttk.Progressbar(viewport_frame, mode='indeterminate', bootstyle="danger", length=300)
 
     def on_dimension_change(self, which):
         # Prevent recursion loop
@@ -670,9 +671,10 @@ class ZImageApp(ttk.Window):
         self.status_var.set("Upscaling Image (2x)... Please wait.")
         
         # Show indeterminate progress for upscaling
-        self.progress.configure(mode='indeterminate')
+        # KITT effect: Red bouncing bar (danger style)
+        self.progress.configure(mode='indeterminate', bootstyle="danger")
         self.progress.place(relx=0, rely=0, relwidth=1)
-        self.progress.start(10)
+        self.progress.start(40) # Slower speed for that "scanning" look
         
         def run_upscale():
             try:
