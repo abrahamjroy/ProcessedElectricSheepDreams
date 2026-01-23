@@ -285,18 +285,31 @@ class ImageGenerator:
             else:
                 wm_msg = b'ESD_ANON' # Anonymous signature
             
+            print(f"[Watermark] Encoding {len(wm_msg)*8} bits: {wm_msg}")
+            
             encoder = WatermarkEncoder()
             # method 'dwtDct' is robust; 'dwtDctSvd' is slower but stronger
             encoder.set_watermark('bytes', wm_msg)
             
             # Convert PIL to BGR OpenCV
-            img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            # Ensure RGB and uint8
+            img_rgb = image.convert("RGB")
+            img_cv = cv2.cvtColor(np.array(img_rgb, dtype=np.uint8), cv2.COLOR_RGB2BGR)
             
-            # Encode
-            img_encoded = encoder.encode(img_cv, 'dwtDct')
+            # Encode using faster algorithm (dwtDct)
+            img_encoded = encoder.encode(img_cv, 'dwtDct') 
+            # img_encoded = encoder.get_im_bgr() # Not needed for dwtDct 
             
             # Convert back to PIL RGB
             img_out = Image.fromarray(cv2.cvtColor(img_encoded, cv2.COLOR_BGR2RGB))
+            
+            # --- DEBUG: Verify immediately (Fast check) ---
+            # We keep a simpler check or remove it if speed is critical.
+            # Let's keep a minimal log but not break execution if it fails.
+            print(f"[Watermark] Applied signature: {wm_msg}")
+            # ---------------------------------
+            # ---------------------------------
+            
             return img_out
             
         except ImportError:

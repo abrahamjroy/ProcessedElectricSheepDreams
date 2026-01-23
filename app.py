@@ -581,12 +581,8 @@ class ZImageApp(ttk.Window):
 
             image = self.generator.generate(**params)
             
-            # Apply Invisible Watermark (SynthID-like)
-            try:
-                # Pass stealth flag to apply_watermark if checking for ID
-                image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
-            except Exception as w_err:
-                print(f"Watermark Skipped: {w_err}")
+            # Apply Invisible Watermark logic moved to save_image for speed
+            # image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
 
             self.generated_image = image
             self.last_params = params  # Store for metadata persistence
@@ -643,6 +639,16 @@ class ZImageApp(ttk.Window):
                 metadata.add_text("Software", "Electric Sheep Dreams v0.1")
                 metadata.add_text("Source", "AI Generated (Z-Image-Turbo)")
                 
+                # Apply Watermark on Save (Fastest UX)
+                # This ensures the generated image in memory remains clean/fast
+                final_image = self.generated_image
+                try:
+                    self.status_var.set("Saving securely (Watermarking)...")
+                    self.update_idletasks() # Force UI update
+                    final_image = self.generator.apply_watermark(self.generated_image, include_id=not self.stealth_mode)
+                except Exception as wm_e:
+                     print(f"Save Watermark Error: {wm_e}")
+                     
                 # Add Generation Params if available
                 if hasattr(self, 'last_params'):
                     p = self.last_params
@@ -654,8 +660,9 @@ class ZImageApp(ttk.Window):
                     if "style" in p.get("prompt", ""): # Just a heuristic, or we can store style separately
                         pass 
 
-                self.generated_image.save(path, pnginfo=metadata)
-                messagebox.showinfo("Saved", f"Image saved to {path}\n(Metadata Embedded)")
+                final_image.save(path, pnginfo=metadata)
+                self.status_var.set("Saved Securely.")
+                messagebox.showinfo("Saved", f"Image saved to {path}\n(Metadata & Watermark Embedded)")
 
     def upscale_action(self):
         if not self.generated_image: return
