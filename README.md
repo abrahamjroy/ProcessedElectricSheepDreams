@@ -117,9 +117,12 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 
 - SDNQ 4-bit quantization for efficient VRAM usage
 - Automatic aspect ratio detection from source images
-- 2x AI upscaling using Swin2SR (optional)
-- Negative prompt presets for common use cases
-- TF32 acceleration on Ampere+ GPUs
+- **Styles**: Select from Cinematic, Anime, Cyberpunk, and more for instant aesthetic enhancements
+- **2x AI Upscaling**: Integrated Swin2SR for high-quality resolution boosting
+- **Invisible Watermarking**: Embeds invisible SynthID-like signatures for authenticity (contains optional Device ID)
+- **Metadata Embedding**: Full generation parameters (Prompt, Seed, Steps, Guidance) stored directly in PNG files
+- **Stealth Mode**: Launch with `--TopSecret` to disable device fingerprinting in watermarks
+- **TF32 Acceleration**: Enabled on Ampere+ GPUs for faster inference
 
 ---
 

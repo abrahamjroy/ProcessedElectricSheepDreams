@@ -16,6 +16,7 @@ sdnq
 # Image Processing
 pillow>=10.0.0
 numpy
+invisible-watermark>=0.2.0
 
 # GUI Framework
 ttkbootstrap>=1.10.0

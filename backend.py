@@ -62,7 +62,8 @@ class ImageGenerator:
         strength: float = 0.7,
         color_match: bool = False,
         blend_edges: bool = False,
-        preserve_edges: bool = False
+        preserve_edges: bool = False,
+        callback: callable = None
     ) -> Image.Image:
         """
         Generate an image from text prompt or transform an existing image.
@@ -98,6 +99,7 @@ class ImageGenerator:
             "num_inference_steps": steps,
             "guidance_scale": guidance_scale,
             "generator": generator,
+            "callback_on_step_end": callback,
         }
 
         # Inpainting mode: image + mask provided
@@ -258,3 +260,48 @@ class ImageGenerator:
             print(f"Swin2SR unavailable: {e}. Using Lanczos fallback.")
             w, h = image.size
             return image.resize((w * 2, h * 2), Image.LANCZOS)
+
+    def get_device_id(self) -> str:
+        """Generate a unique identifier for the running machine."""
+        import uuid
+        import hashlib
+        
+        # Get MAC address
+        mac = uuid.getnode()
+        # Hash it for privacy and shortness
+        return hashlib.sha256(str(mac).encode()).hexdigest()[:8]
+
+    def apply_watermark(self, image: Image.Image, include_id: bool = True) -> Image.Image:
+        """Apply invisible watermark (AI Signature + Optional Device ID) to the image."""
+        try:
+            import cv2
+            import numpy as np
+            from imwatermark import WatermarkEncoder
+            
+            # Message construction
+            if include_id:
+                dev_id = self.get_device_id()
+                wm_msg = f'ESD_{dev_id}'.encode()
+            else:
+                wm_msg = b'ESD_ANON' # Anonymous signature
+            
+            encoder = WatermarkEncoder()
+            # method 'dwtDct' is robust; 'dwtDctSvd' is slower but stronger
+            encoder.set_watermark('bytes', wm_msg)
+            
+            # Convert PIL to BGR OpenCV
+            img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+            
+            # Encode
+            img_encoded = encoder.encode(img_cv, 'dwtDct')
+            
+            # Convert back to PIL RGB
+            img_out = Image.fromarray(cv2.cvtColor(img_encoded, cv2.COLOR_BGR2RGB))
+            return img_out
+            
+        except ImportError:
+            print("Warning: 'invisible-watermark' or 'opencv-python' not installed. Skipping watermark.")
+            return image
+        except Exception as e:
+            print(f"Watermarking failed: {e}")
+            return image

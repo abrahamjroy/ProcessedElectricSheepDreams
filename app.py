@@ -41,9 +41,10 @@ class ToggledFrame(ttk.Frame):
             self.toggle_btn.configure(text='+')
 
 class ZImageApp(ttk.Window):
-    def __init__(self):
+    def __init__(self, stealth_mode=False):
         # "cyborg" is a dark theme, we will customize further for AMOLED
         super().__init__(themename="cyborg") 
+        self.stealth_mode = stealth_mode 
         
         self.title("Processed Electric Sheep Dreams")
         self.geometry("1600x1000")  # Larger to ensure viewport is visible
@@ -282,8 +283,8 @@ class ZImageApp(ttk.Window):
         action_row = ttk.Frame(footer_frame)
         action_row.pack(fill=X)
         
-        self.save_btn = ttk.Button(action_row, text="💾 SAVE", command=self.save_image, state=DISABLED, bootstyle="secondary-outline")
-        self.save_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 2))
+        self.footer_save_btn = ttk.Button(action_row, text="💾 SAVE", command=self.save_image, state=DISABLED, bootstyle="secondary-outline")
+        self.footer_save_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 2))
         
         self.upscale_btn = ttk.Button(action_row, text="🔍 UPSCALE 2x", command=self.upscale_action, state=DISABLED, bootstyle="info-outline")
         self.upscale_btn.pack(side=LEFT, fill=X, expand=True, padx=(2, 0))
@@ -559,8 +560,36 @@ class ZImageApp(ttk.Window):
         
     def run_generation(self, params):
         try:
+            # Setup Progress Bar
+            steps = params.get("steps", 9)
+            
+            # Reset and Configure
+            def setup_progress():
+                self.progress.stop()
+                self.progress.configure(mode='determinate', maximum=steps, value=0)
+                self.progress.place(relx=0, rely=0, relwidth=1)
+            self.after(0, setup_progress)
+            
+            def step_callback(pipe, step, timestep, callback_kwargs):
+                # Ensure step is int
+                current_step = int(step)
+                # print(f"DEBUG: Step {current_step}/{steps}") 
+                self.after(0, lambda: self.progress.configure(value=current_step + 1))
+                return callback_kwargs
+
+            params["callback"] = step_callback
+
             image = self.generator.generate(**params)
+            
+            # Apply Invisible Watermark (SynthID-like)
+            try:
+                # Pass stealth flag to apply_watermark if checking for ID
+                image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
+            except Exception as w_err:
+                print(f"Watermark Skipped: {w_err}")
+
             self.generated_image = image
+            self.last_params = params  # Store for metadata persistence
             self.after(0, self.display_image, image)
             self.after(0, lambda: self.status_var.set("Rendering Complete."))
         except Exception as e:
@@ -586,6 +615,9 @@ class ZImageApp(ttk.Window):
         self.canvas.delete("all")
         self.canvas.create_image(c_width//2, c_height//2, image=self.tk_image, anchor=CENTER)
         self.save_btn.configure(state=NORMAL)
+        if hasattr(self, 'footer_save_btn'):
+            self.footer_save_btn.configure(state=NORMAL)
+            
         if hasattr(self, 'upscale_btn'):
             self.upscale_btn.configure(state=NORMAL)
 
@@ -603,13 +635,37 @@ class ZImageApp(ttk.Window):
                 initialfile=f"{filename}.png"
             )
             if path:
-                self.generated_image.save(path)
-                messagebox.showinfo("Saved", f"Image saved to {path}")
+                # Prepare Metadata (PNG Info)
+                from PIL.PngImagePlugin import PngInfo
+                metadata = PngInfo()
+                
+                # Add basic attribution
+                metadata.add_text("Software", "Electric Sheep Dreams v0.1")
+                metadata.add_text("Source", "AI Generated (Z-Image-Turbo)")
+                
+                # Add Generation Params if available
+                if hasattr(self, 'last_params'):
+                    p = self.last_params
+                    metadata.add_text("Prompt", p.get("prompt", ""))
+                    metadata.add_text("Negative Prompt", p.get("negative_prompt", ""))
+                    metadata.add_text("Seed", str(p.get("seed", -1)))
+                    metadata.add_text("Steps", str(p.get("steps", "")))
+                    metadata.add_text("Guidance", str(p.get("guidance_scale", "")))
+                    if "style" in p.get("prompt", ""): # Just a heuristic, or we can store style separately
+                        pass 
+
+                self.generated_image.save(path, pnginfo=metadata)
+                messagebox.showinfo("Saved", f"Image saved to {path}\n(Metadata Embedded)")
 
     def upscale_action(self):
         if not self.generated_image: return
         self.upscale_btn.configure(state=DISABLED)
         self.status_var.set("Upscaling Image (2x)... Please wait.")
+        
+        # Show indeterminate progress for upscaling
+        self.progress.configure(mode='indeterminate')
+        self.progress.place(relx=0, rely=0, relwidth=1)
+        self.progress.start(10)
         
         def run_upscale():
             try:
@@ -621,6 +677,8 @@ class ZImageApp(ttk.Window):
                     self.display_image(self.generated_image)
                     self.status_var.set("Upscale Complete!")
                     self.upscale_btn.configure(state=NORMAL)
+                    self.progress.stop()
+                    self.progress.place_forget()
                     
                 self.after(0, update_ui)
                 
@@ -629,37 +687,19 @@ class ZImageApp(ttk.Window):
                     self.status_var.set(f"Upscale Error: {e}")
                     messagebox.showerror("Error", str(e))
                     self.upscale_btn.configure(state=NORMAL)
+                    self.progress.stop()
+                    self.progress.place_forget()
                 self.after(0, show_error)
         
         threading.Thread(target=run_upscale, daemon=True).start()
 
-    def upscale_action(self):
-        if not self.generated_image: return
-        self.upscale_btn.configure(state=DISABLED)
-        self.status_var.set("Upscaling Image (2x)... Please wait.")
-        
-        def run_upscale():
-            try:
-                upscaled = self.generator.upscale_image(self.generated_image)
-                
-                # Update UI in main thread
-                def update_ui():
-                    self.generated_image = upscaled
-                    self.display_image(self.generated_image)
-                    self.status_var.set("Upscale Complete!")
-                    self.upscale_btn.configure(state=NORMAL)
-                    
-                self.after(0, update_ui)
-                
-            except Exception as e:
-                def show_error():
-                    self.status_var.set(f"Upscale Error: {e}")
-                    messagebox.showerror("Error", str(e))
-                    self.upscale_btn.configure(state=NORMAL)
-                self.after(0, show_error)
-        
-        threading.Thread(target=run_upscale, daemon=True).start()
+
 
 if __name__ == "__main__":
-    app = ZImageApp()
+    import sys
+    stealth = "--TopSecret" in sys.argv
+    if stealth:
+        print(">> TOP SECRET MODE ENGAGED: Device Fingerprinting DISABLED <<")
+    
+    app = ZImageApp(stealth_mode=stealth)
     app.mainloop()
