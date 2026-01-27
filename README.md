@@ -8,7 +8,7 @@
 A native desktop application for fast AI image generation using a highly optimized Z-Image-Turbo model with SDNQ quantization. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing.
 ```mermaid
 graph TD
-    User[User Input] --> |Prompt & Settings| App[Desktop UI]
+    User[User Input] --> |Prompt & Settings| App[Desktop UI]  
     App --> |Load| VN[VRAM Negotiator]
     VN --> |Optimized| Pipeline[Z-Image-Turbo Pipeline]
     
@@ -112,6 +112,14 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 - **Color Match**: Transfers color/lighting statistics from source to generated regions
 - **Blend Edges**: Feathers mask boundaries for seamless transitions
 - **Preserve Structure**: Maintains edge contours from the source image
+- **Send to Remix**: One-click workflow to instantly send a generated result to the input for iteration
+- **Gallery Strip**: Persistent session history at the bottom of the viewport
+- **Open Output Folder**: Quick access button 📂 to view your generated files
+
+### Advanced Capabilities (New)
+
+- **LoRA Support**: Drop `.safetensors` files into `models/loras/` to dynamically load styles (Experimental)
+- **Smart Seed**: Toggle between Random (`-1`) and Fixed seeds with a simple checkbox
 
 ### Technical Features
 
@@ -132,6 +140,13 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 - Windows, Linux, or macOS
 
 ---
+
+## Agentic & MCP Support
+This project is **MCP (Model Context Protocol) Compliant**. 
+You can run `Run_MCP.bat` or configure your agent (like Claude Desktop) to use `mcp_server.py` to:
+- Generate images via text prompt
+- Upscale images
+- Check device status
 
 ## Installation
 
@@ -190,6 +205,8 @@ python app.py
 |-----|---------|
 | CREATE | Text-to-Image generation with aspect ratio presets |
 | REMIX | Image-to-Image transformation and Inpainting |
+| 📂 Folder | Opens the local directory containing your generated images |
+| ↦ REMIX | (Overlay) Sends the current result to the REMIX tab for editing |
 
 ### Generation Parameters
 
@@ -200,7 +217,8 @@ python app.py
 | Steps | Number of inference steps | 9 |
 | Guidance Scale | CFG scale (0.0 recommended for turbo) | 0.0 |
 | Strength | Transformation intensity for Img2Img | 0.40 |
-| Seed | Random seed (-1 for random) | -1 |
+| Seed | Random (-1) or Fixed Integer (toggle with checkbox) | -1 |
+| LoRA | Select a loaded LoRA model from the dropdown | None |
 
 ### Inpainting Workflow
 
@@ -234,6 +252,7 @@ This application uses the [Z-Image-Turbo](https://huggingface.co/Disty0/Z-Image-
 - First generation may be slower due to model initialization
 - Generation speed depends on resolution and GPU capability
 - Lower dimensions (1024x1024) generate faster than higher resolutions
+- **LoRA Note**: The base model is int4 quantized. Some standard fp16 LoRAs may not apply correctly or may degrade quality. This feature is experimental.
 
 ---
 

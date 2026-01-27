@@ -63,6 +63,8 @@ class ImageGenerator:
         color_match: bool = False,
         blend_edges: bool = False,
         preserve_edges: bool = False,
+        lora_path: str = None,
+        lora_scale: float = 0.8,
         callback: callable = None
     ) -> Image.Image:
         """
@@ -102,20 +104,44 @@ class ImageGenerator:
             "callback_on_step_end": callback,
         }
 
-        # Inpainting mode: image + mask provided
-        if image and mask_image:
-            return self._generate_inpaint(args, image, mask_image, width, height, 
-                                          strength, color_match, blend_edges, preserve_edges)
+
+
+        # Apply LoRA if requested
+        if lora_path and "None" not in lora_path:
+            try:
+                print(f"Loading LoRA: {lora_path}")
+                adapter_name = "custom_lora"
+                self.pipe.load_lora_weights(lora_path, adapter_name=adapter_name)
+                self.pipe.set_adapters([adapter_name], adapter_weights=[lora_scale]) 
+            except Exception as e:
+                print(f"LoRA Load Failed: {e}")
+
+        try:
+            # Inpainting mode: image + mask provided
+            if image and mask_image:
+                result = self._generate_inpaint(args, image, mask_image, width, height, 
+                                            strength, color_match, blend_edges, preserve_edges)
+            
+            # Img2Img mode: image without mask
+            elif image:
+                result = self._generate_img2img(args, image, width, height, strength, color_match, preserve_edges)
+            
+            # Text-to-Image mode: no source image
+            else:
+                args["width"] = width
+                args["height"] = height
+                result = self.pipe(**args).images[0]
+                
+        finally:
+            # Always unload LoRA to prevent pollution of future generations
+            if lora_path and "None" not in lora_path:
+                try:
+                    print("Unloading LoRA...")
+                    self.pipe.unload_lora_weights()
+                except: 
+                    pass
         
-        # Img2Img mode: image without mask
-        elif image:
-            return self._generate_img2img(args, image, width, height, strength, color_match, preserve_edges)
-        
-        # Text-to-Image mode: no source image
-        else:
-            args["width"] = width
-            args["height"] = height
-            return self.pipe(**args).images[0]
+        return result
 
     def _generate_img2img(self, args, image, width, height, strength, color_match=False, preserve_edges=False):
         """Handle Image-to-Image generation."""

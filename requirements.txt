@@ -20,3 +20,7 @@ invisible-watermark>=0.2.0
 
 # GUI Framework
 ttkbootstrap>=1.10.0
+
+# MCP
+mcp
+

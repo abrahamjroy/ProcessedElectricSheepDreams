@@ -284,13 +284,13 @@ class ZImageApp(ttk.Window):
         ttk.Label(tab_remix, text="Inpaint Options", font=("Consolas", 9), foreground="#888888").pack(anchor="w", pady=(15, 5))
         
         self.color_match_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Color Match (match lighting/tone)", variable=self.color_match_var, bootstyle="success-round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Color Match (match lighting/tone)", variable=self.color_match_var, bootstyle="round-toggle").pack(anchor="w")
         
         self.blend_edges_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Blend Edges (feather transitions)", variable=self.blend_edges_var, bootstyle="success-round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Blend Edges (feather transitions)", variable=self.blend_edges_var, bootstyle="round-toggle").pack(anchor="w")
         
         self.preserve_edges_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Preserve Structure (edge guidance)", variable=self.preserve_edges_var, bootstyle="success-round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Preserve Structure (edge guidance)", variable=self.preserve_edges_var, bootstyle="round-toggle").pack(anchor="w")
 
         # Advanced Settings (Shared, Collapsible)
         adv_section = ToggledFrame(controls_frame, text="ADVANCED CONFIGURATION")
@@ -333,6 +333,12 @@ class ZImageApp(ttk.Window):
         self.lora_var = tk.StringVar(value="None")
         self.lora_combo = ttk.Combobox(sliders_frame, textvariable=self.lora_var, values=self.lora_files, state="readonly", bootstyle="dark", width=15)
         self.lora_combo.grid(row=2, column=1, padx=10, sticky="ew")
+
+        # LoRA Strength Slider
+        ttk.Label(sliders_frame, text="LoRA Strength", font=("Consolas", 9), foreground="#888888").grid(row=3, column=0, sticky="w", pady=10)
+        self.lora_scale_var = tk.DoubleVar(value=0.8)
+        self.lora_scale_slider = ttk.Scale(sliders_frame, from_=0.0, to=1.5, orient=HORIZONTAL, variable=self.lora_scale_var, bootstyle="info")
+        self.lora_scale_slider.grid(row=3, column=1, padx=10, sticky="ew")
 
         # Steps
         ttk.Label(sliders_frame, text="Sampling Steps", font=("Consolas", 9), foreground="#888888").grid(row=0, column=0, sticky="w")
@@ -430,6 +436,7 @@ class ZImageApp(ttk.Window):
         self.canvas.pack(fill=BOTH, expand=True, padx=20, pady=20)
         
         # Floating Save Button
+        self.save_btn = ttk.Button(viewport_frame, text="SAVE", command=self.save_image, state=DISABLED, bootstyle="light", width=15)
         self.save_btn.place(relx=0.95, rely=0.95, anchor="se")
         
         # Send to Remix Button (Overlay)
@@ -716,7 +723,8 @@ class ZImageApp(ttk.Window):
             "color_match": self.color_match_var.get() if hasattr(self, 'color_match_var') else False,
             "blend_edges": self.blend_edges_var.get() if hasattr(self, 'blend_edges_var') else False,
             "preserve_edges": self.preserve_edges_var.get() if hasattr(self, 'preserve_edges_var') else False,
-            "lora_path": os.path.join(os.getcwd(), "models", "loras", self.lora_var.get()) if self.lora_var.get() != "None" else None
+            "lora_path": os.path.join(os.getcwd(), "models", "loras", self.lora_var.get()) if self.lora_var.get() != "None" else None,
+            "lora_scale": self.lora_scale_var.get() if hasattr(self, 'lora_scale_var') else 0.8
         }
         
         if hasattr(self, 'style_var'):
