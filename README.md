@@ -2,6 +2,9 @@
 
 ![Version](https://img.shields.io/badge/version-0.1-green?style=for-the-badge&logo=none)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-%23EE4C2C.svg?style=for-the-badge&logo=PyTorch&logoColor=white)
+![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97-Hugging%20Face-orange?style=for-the-badge)
+![MCP](https://img.shields.io/badge/MCP-Compliant-0066cc?style=for-the-badge&logo=code&logoColor=white)
 ![Platform](https://img.shields.io/badge/platform-windows-blue?style=for-the-badge&logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-purple?style=for-the-badge)
 
