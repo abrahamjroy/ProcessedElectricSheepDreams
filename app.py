@@ -5,6 +5,8 @@ from tkinter import filedialog, messagebox
 import threading
 from PIL import Image, ImageTk
 import re
+import os
+import shutil
 from backend import ImageGenerator
 
 # Helper for Collapsible Frame
@@ -133,6 +135,7 @@ class ZImageApp(ttk.Window):
         # "cyborg" is a dark theme, we will customize further for AMOLED
         super().__init__(themename="cyborg") 
         self.stealth_mode = stealth_mode 
+        self.gallery_images = [] # List of (image_obj, prompt_str)
         
         self.title("Processed Electric Sheep Dreams")
         self.geometry("1600x1000")  # Larger to ensure viewport is visible
@@ -317,6 +320,20 @@ class ZImageApp(ttk.Window):
         sliders_frame = ttk.Frame(adv_grid)
         sliders_frame.pack(fill=X)
         
+        # LoRA Selector (New)
+        ttk.Label(sliders_frame, text="LoRA Model", font=("Consolas", 9), foreground="#888888").grid(row=2, column=0, sticky="w", pady=10)
+        
+        # Scan for LoRAs
+        self.lora_files = ["None"]
+        lora_dir = os.path.join(os.getcwd(), "models", "loras")
+        if os.path.exists(lora_dir):
+            files = [f for f in os.listdir(lora_dir) if f.endswith(".safetensors")]
+            self.lora_files.extend(files)
+            
+        self.lora_var = tk.StringVar(value="None")
+        self.lora_combo = ttk.Combobox(sliders_frame, textvariable=self.lora_var, values=self.lora_files, state="readonly", bootstyle="dark", width=15)
+        self.lora_combo.grid(row=2, column=1, padx=10, sticky="ew")
+
         # Steps
         ttk.Label(sliders_frame, text="Sampling Steps", font=("Consolas", 9), foreground="#888888").grid(row=0, column=0, sticky="w")
         self.steps_var = tk.IntVar(value=9)
@@ -355,10 +372,27 @@ class ZImageApp(ttk.Window):
         seed_frame.pack(fill=X)
         
         self.seed_var = tk.IntVar(value=-1)
-        ttk.Entry(seed_frame, textvariable=self.seed_var, bootstyle="dark").pack(side=LEFT, fill=X, expand=True)
+        self.seed_entry = ttk.Entry(seed_frame, textvariable=self.seed_var, bootstyle="dark")
+        self.seed_entry.pack(side=LEFT, fill=X, expand=True)
         
-        # Dice Button
-        ttk.Button(seed_frame, text="🎲", width=3, command=self.roll_dice, bootstyle="secondary-outline").pack(side=LEFT, padx=(5,0))
+        # Randomize Checkbox (Smart Seed)
+        self.random_seed_var = tk.BooleanVar(value=True)
+        
+        def toggle_seed_lock():
+            if self.random_seed_var.get():
+                self.seed_entry.configure(state=DISABLED)
+                self.seed_var.set(-1)
+            else:
+                self.seed_entry.configure(state=NORMAL)
+                # If it was -1, give a starting seed
+                if self.seed_var.get() == -1:
+                    self.seed_var.set(12345678)
+                    
+        self.chk_random = ttk.Checkbutton(seed_frame, text="Randomize", variable=self.random_seed_var, command=toggle_seed_lock, bootstyle="round-toggle")
+        self.chk_random.pack(side=LEFT, padx=(5,0))
+        
+        # Init state
+        toggle_seed_lock()
 
         # Status Label
         self.status_lbl = ttk.Label(footer_frame, textvariable=self.status_var, wraplength=350, justify=CENTER, font=("Consolas", 9), foreground="#00aa00")
@@ -368,9 +402,12 @@ class ZImageApp(ttk.Window):
         self.generate_btn = ttk.Button(footer_frame, text="⚡ GENERATE DREAM ⚡", command=self.start_generation, state=DISABLED, bootstyle="success")
         self.generate_btn.pack(fill=X, pady=(0, 5))
         
-        # Action Row (Save + Upscale)
+        # Action Row (Save + Upscale + Folder)
         action_row = ttk.Frame(footer_frame)
         action_row.pack(fill=X)
+        
+        self.open_folder_btn = ttk.Button(action_row, text="📂", width=3, command=self.open_output_folder, bootstyle="secondary-outline")
+        self.open_folder_btn.pack(side=LEFT, padx=(0, 5))
         
         self.footer_save_btn = ttk.Button(action_row, text="💾 SAVE", command=self.save_image, state=DISABLED, bootstyle="secondary-outline")
         self.footer_save_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 2))
@@ -393,8 +430,25 @@ class ZImageApp(ttk.Window):
         self.canvas.pack(fill=BOTH, expand=True, padx=20, pady=20)
         
         # Floating Save Button
-        self.save_btn = ttk.Button(viewport_frame, text="SAVE", command=self.save_image, state=DISABLED, bootstyle="light", width=15)
         self.save_btn.place(relx=0.95, rely=0.95, anchor="se")
+        
+        # Send to Remix Button (Overlay)
+        self.remix_btn = ttk.Button(viewport_frame, text="↦ REMIX", command=self.send_to_remix, state=DISABLED, bootstyle="warning", width=15)
+        self.remix_btn.place(relx=0.05, rely=0.95, anchor="sw")
+        
+        # Gallery Strip (Bottom Overlay - Collapsible)
+        self.gallery_frame = ttk.Frame(viewport_frame, height=120, bootstyle="dark")
+        self.gallery_frame.place(relx=0, rely=1.0, anchor="sw", relwidth=1.0) # Start hidden/low
+        
+        # Show/Hide Gallery Button
+        self.gallery_toggle = ttk.Checkbutton(viewport_frame, text="Show Gallery", bootstyle="toolbutton", command=self.toggle_gallery)
+        self.gallery_toggle.place(relx=0.5, rely=0.96, anchor="s")
+        
+        # Internal scrollable for gallery
+        self.gallery_scroll = ScrolledFrame(self.gallery_frame, scrollheight=100, autohide=True, height=110)
+        self.gallery_scroll.pack(fill=BOTH, expand=True, pady=2)
+        
+        self.gallery_content = self.gallery_scroll # The actual frame to pack thumbs into
         
         # Progress Bar Overlay (Thin line at top of viewport)
         # Standard determinate bar (Green/Default) for generation steps
@@ -469,24 +523,54 @@ class ZImageApp(ttk.Window):
         self.seed_var = tk.IntVar(value=-1)
         ttk.Entry(seed_frame, textvariable=self.seed_var, bootstyle="dark").pack(side=LEFT, fill=X, expand=True)
         
-        # Dice Button
-        ttk.Button(seed_frame, text="🎲", width=3, command=self.roll_dice, bootstyle="secondary-outline").pack(side=LEFT, padx=(5,0))
+        # Dice Button Removed for Checkbox
+        pass
 
-    def roll_dice(self):
-        # "Animate" the rolling by changing numbers rapidly
-        import random
-        def roll_step(count):
-            if count > 0:
-                # Show random temporary number
-                self.seed_var.set(random.randint(0, 9999999999))
-                self.after(50, lambda: roll_step(count - 1))
-            else:
-                # Final result (or set to -1 for true random, but usually users want a lockable number)
-                # Let's give them a concrete lockable number
-                final_seed = random.randint(0, 2**32 - 1)
-                self.seed_var.set(final_seed)
+    def open_output_folder(self):
+        # Default save loc is current dir, but let's try to open where user last saved or cwd
+        path = os.getcwd()
+        os.startfile(path)
+
+    def send_to_remix(self):
+        if not self.generated_image: return
         
-        roll_step(15) # 15 frames of animation
+        self.source_image = self.generated_image.copy()
+        
+        # Update thumb
+        thumb = self.source_image.copy()
+        thumb.thumbnail((200, 200))
+        self.tk_thumb = ImageTk.PhotoImage(thumb)
+        self.source_thumb_lbl.configure(image=self.tk_thumb, text="")
+        
+        # Switch tab
+        self.notebook.select(1)
+        
+        self.status_var.set("Image sent to Remix. Adjust params and generate.")
+
+    def toggle_gallery(self):
+        # Simple animation or place/forget
+        if self.gallery_frame.winfo_y() < self.canvas.winfo_height():
+             # Hide
+             self.gallery_frame.place(rely=1.2) # Move offscreen
+        else:
+             # Show (move up)
+             self.gallery_frame.place(rely=0.88, relheight=0.12) # 12% height at bottom
+
+    def add_to_gallery(self, image, prompt):
+        # Create thumbnail
+        thumb = image.copy()
+        thumb.thumbnail((100, 100))
+        tk_thumb = ImageTk.PhotoImage(thumb)
+        
+        # Create widget
+        btn = ttk.Button(self.gallery_content, image=tk_thumb, command=lambda img=image: self.display_image(img))
+        btn.image = tk_thumb # Keep ref
+        btn.pack(side=LEFT, padx=5, pady=5)
+        
+        # Keep track
+        self.gallery_images.append(image)
+        
+        # If gallery is hidden, maybe flash indicator? For now just add.
 
     def upload_source_image(self):
         path = filedialog.askopenfilename(filetypes=[("Images", "*.png;*.jpg;*.jpeg;*.webp")])
@@ -631,7 +715,8 @@ class ZImageApp(ttk.Window):
             "strength": strength,
             "color_match": self.color_match_var.get() if hasattr(self, 'color_match_var') else False,
             "blend_edges": self.blend_edges_var.get() if hasattr(self, 'blend_edges_var') else False,
-            "preserve_edges": self.preserve_edges_var.get() if hasattr(self, 'preserve_edges_var') else False
+            "preserve_edges": self.preserve_edges_var.get() if hasattr(self, 'preserve_edges_var') else False,
+            "lora_path": os.path.join(os.getcwd(), "models", "loras", self.lora_var.get()) if self.lora_var.get() != "None" else None
         }
         
         if hasattr(self, 'style_var'):
@@ -680,6 +765,7 @@ class ZImageApp(ttk.Window):
             self.generated_image = image
             self.last_params = params  # Store for metadata persistence
             self.after(0, self.display_image, image)
+            self.after(0, lambda: self.add_to_gallery(image, params.get("prompt", "")))
             self.after(0, lambda: self.status_var.set("Rendering Complete."))
         except Exception as e:
             error_msg = str(e)
@@ -711,6 +797,9 @@ class ZImageApp(ttk.Window):
             
         if hasattr(self, 'upscale_btn'):
             self.upscale_btn.configure(state=NORMAL)
+        
+        if hasattr(self, 'remix_btn'):
+            self.remix_btn.configure(state=NORMAL)
 
     def save_image(self):
         if self.generated_image:
@@ -798,6 +887,9 @@ class ZImageApp(ttk.Window):
 
 
 if __name__ == "__main__":
+    app = ZImageApp()
+    app.place_window_center()
+    app.mainloop()
     import sys
     stealth = "--TopSecret" in sys.argv
     if stealth:
