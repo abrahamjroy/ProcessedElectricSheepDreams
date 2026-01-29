@@ -318,7 +318,7 @@ This application supports multiple models with easy switching:
 - 4-bit SDNQ quantization optimized for maximum quality
 - Superior output fidelity
 - ~3GB download, ~4GB VRAM
-- Created by [@Abrahamm3r](https://huggingface.co/Abrahamm3r)
+- Created by [@Abrahamm3r](https://huggingface.co/Abrahamm3r) (Self/OP)
 
 ### Base Model
 **[Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)**
