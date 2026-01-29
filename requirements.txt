@@ -18,6 +18,12 @@ pillow>=10.0.0
 numpy
 invisible-watermark>=0.2.0
 
+# Smart Masking
+rembg
+opencv-python
+onnxruntime-gpu
+mediapipe
+
 # GUI Framework
 ttkbootstrap>=1.10.0
 

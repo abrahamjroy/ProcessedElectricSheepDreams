@@ -170,7 +170,8 @@ class ZImageApp(ttk.Window):
     def init_backend(self):
         try:
             self.status_var.set("Initializing Neural Engine...")
-            self.generator = ImageGenerator()
+            model_id = self.model_var.get()
+            self.generator = ImageGenerator(model_id=model_id)
             self.status_var.set("System Ready. Waiting for input.")
             self.generate_btn.configure(state=NORMAL)
         except Exception as e:
@@ -259,6 +260,25 @@ class ZImageApp(ttk.Window):
         tab_remix = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(tab_remix, text="  REMIX  ")
         
+        # Smart Mode Select
+        ttk.Label(tab_remix, text="Remix Mode", font=("Consolas", 9), foreground="#888888").pack(anchor="w", pady=(0, 5))
+        
+        self.remix_mode_var = tk.StringVar(value="standard")
+        
+        rm_frame = ttk.Frame(tab_remix)
+        rm_frame.pack(fill=X, pady=(0, 10))
+        
+        ttk.Radiobutton(rm_frame, text="Standard", variable=self.remix_mode_var, value="standard", bootstyle="info").pack(side=LEFT, padx=(0,10))
+        ttk.Radiobutton(rm_frame, text="Smart: Outfit", variable=self.remix_mode_var, value="outfit", bootstyle="warning").pack(side=LEFT, padx=(0,10))
+        ttk.Radiobutton(rm_frame, text="Smart: Backgrnd", variable=self.remix_mode_var, value="bg", bootstyle="success").pack(side=LEFT)
+        
+        # Preview Mask Button
+        self.preview_mask_btn = ttk.Button(rm_frame, text="👁 Preview Mask", command=self.preview_mask_action, bootstyle="link", state=DISABLED)
+        self.preview_mask_btn.pack(side=LEFT, padx=10)
+        
+        # Enable Preview only when image + smart mode
+        self.remix_mode_var.trace_add("write", self.check_preview_state)
+        
         # Upload Button
         ttk.Button(tab_remix, text="UPLOAD REFERENCE IMAGE", command=self.upload_source_image, bootstyle="secondary").pack(fill=X, pady=(0, 10))
         
@@ -284,13 +304,13 @@ class ZImageApp(ttk.Window):
         ttk.Label(tab_remix, text="Inpaint Options", font=("Consolas", 9), foreground="#888888").pack(anchor="w", pady=(15, 5))
         
         self.color_match_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Color Match (match lighting/tone)", variable=self.color_match_var, bootstyle="round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Color Match (match lighting/tone)", variable=self.color_match_var, bootstyle="toolbutton").pack(anchor="w")
         
         self.blend_edges_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Blend Edges (feather transitions)", variable=self.blend_edges_var, bootstyle="round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Blend Edges (feather transitions)", variable=self.blend_edges_var, bootstyle="toolbutton").pack(anchor="w")
         
         self.preserve_edges_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(tab_remix, text="Preserve Structure (edge guidance)", variable=self.preserve_edges_var, bootstyle="round-toggle").pack(anchor="w")
+        ttk.Checkbutton(tab_remix, text="Preserve Structure (edge guidance)", variable=self.preserve_edges_var, bootstyle="toolbutton").pack(anchor="w")
 
         # Advanced Settings (Shared, Collapsible)
         adv_section = ToggledFrame(controls_frame, text="ADVANCED CONFIGURATION")
@@ -320,7 +340,17 @@ class ZImageApp(ttk.Window):
         sliders_frame = ttk.Frame(adv_grid)
         sliders_frame.pack(fill=X)
         
-        # LoRA Selector (New)
+        # Model Selector (New)
+        ttk.Label(sliders_frame, text="Model", font=("Consolas", 9), foreground="#888888").grid(row=0, column=0, sticky="w", pady=10)
+        
+        self.model_var = tk.StringVar(value="Tongyi-MAI/Z-Image-Turbo")
+        self.model_combo = ttk.Combobox(sliders_frame, textvariable=self.model_var, values=[
+            "Tongyi-MAI/Z-Image-Turbo",
+            "Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32"
+        ], state="readonly", bootstyle="dark", width=35)
+        self.model_combo.grid(row=0, column=1, padx=10, sticky="ew")
+        
+        # LoRA Selector
         ttk.Label(sliders_frame, text="LoRA Model", font=("Consolas", 9), foreground="#888888").grid(row=2, column=0, sticky="w", pady=10)
         
         # Scan for LoRAs
@@ -341,16 +371,16 @@ class ZImageApp(ttk.Window):
         self.lora_scale_slider.grid(row=3, column=1, padx=10, sticky="ew")
 
         # Steps
-        ttk.Label(sliders_frame, text="Sampling Steps", font=("Consolas", 9), foreground="#888888").grid(row=0, column=0, sticky="w")
+        ttk.Label(sliders_frame, text="Sampling Steps", font=("Consolas", 9), foreground="#888888").grid(row=4, column=0, sticky="w")
         self.steps_var = tk.IntVar(value=9)
         self.steps_spin = ttk.Spinbox(sliders_frame, from_=1, to=50, textvariable=self.steps_var, bootstyle="secondary", width=5)
-        self.steps_spin.grid(row=0, column=1, padx=10, sticky="e")
+        self.steps_spin.grid(row=4, column=1, padx=10, sticky="e")
         
         # Guidance
-        ttk.Label(sliders_frame, text="Prompt Adherence", font=("Consolas", 9), foreground="#888888").grid(row=1, column=0, sticky="w", pady=10)
+        ttk.Label(sliders_frame, text="Prompt Adherence", font=("Consolas", 9), foreground="#888888").grid(row=5, column=0, sticky="w", pady=10)
         self.cfg_var = tk.DoubleVar(value=0.0)
         self.cfg_scale = ttk.Scale(sliders_frame, from_=0.0, to=10.0, orient=HORIZONTAL, variable=self.cfg_var, bootstyle="info")
-        self.cfg_scale.grid(row=1, column=1, padx=10, sticky="ew")
+        self.cfg_scale.grid(row=5, column=1, padx=10, sticky="ew")
         
         sliders_frame.columnconfigure(1, weight=1)
         
@@ -394,7 +424,7 @@ class ZImageApp(ttk.Window):
                 if self.seed_var.get() == -1:
                     self.seed_var.set(12345678)
                     
-        self.chk_random = ttk.Checkbutton(seed_frame, text="Randomize", variable=self.random_seed_var, command=toggle_seed_lock, bootstyle="round-toggle")
+        self.chk_random = ttk.Checkbutton(seed_frame, text="Randomize", variable=self.random_seed_var, command=toggle_seed_lock, bootstyle="toolbutton")
         self.chk_random.pack(side=LEFT, padx=(5,0))
         
         # Init state
@@ -619,7 +649,11 @@ class ZImageApp(ttk.Window):
             self.height_var.set(src_h)
             self._updating_dims = False
             
+            
             self.status_var.set(f"Source loaded: {self.source_image.size[0]}x{self.source_image.size[1]} → Output: {src_w}x{src_h}")
+            
+            # Update preview capability
+            self.check_preview_state()
 
     def upload_mask_image(self):
         path = filedialog.askopenfilename(filetypes=[("Images", "*.png;*.jpg;*.jpeg;*.webp")])
@@ -634,6 +668,53 @@ class ZImageApp(ttk.Window):
             thumb.thumbnail((200, 200))
             self.tk_mask_thumb = ImageTk.PhotoImage(thumb)
             self.mask_thumb_lbl.configure(image=self.tk_mask_thumb, text="Mask Ready")
+
+    def check_preview_state(self, *args):
+        mode = self.remix_mode_var.get()
+        if mode in ["outfit", "bg"] and self.source_image:
+            self.preview_mask_btn.configure(state=NORMAL)
+        else:
+            self.preview_mask_btn.configure(state=DISABLED)
+
+    def preview_mask_action(self):
+        if not self.source_image or not self.generator: return
+        
+        mode = self.remix_mode_var.get()
+        self.status_var.set(f"Generating Mask Preview ({mode})...")
+        self.preview_mask_btn.configure(state=DISABLED)
+        
+        def run_preview():
+            try:
+                # Resize for speed if large
+                src = self.source_image.copy()
+                if max(src.size) > 1024:
+                    src.thumbnail((1024, 1024))
+                    
+                mask = self.generator.preview_smart_mask(src, mode=mode)
+                
+                # Update UI in main thread
+                self.after(0, lambda: self.show_mask_preview(mask))
+            except Exception as e:
+                print(f"Preview Failed: {e}")
+                self.after(0, lambda: self.status_var.set(f"Mask Error: {e}"))
+            finally:
+                self.after(0, lambda: self.preview_mask_btn.configure(state=NORMAL))
+                
+        threading.Thread(target=run_preview, daemon=True).start()
+
+    def show_mask_preview(self, mask):
+        # Update the mask thumb
+        thumb = mask.copy()
+        thumb.thumbnail((200, 200))
+        # Invert for visual clarity? Mask is White=Regen.
+        # Let's show it as is.
+        self.tk_mask_thumb = ImageTk.PhotoImage(thumb)
+        self.mask_thumb_lbl.configure(image=self.tk_mask_thumb, text="Smart Mask Generated")
+        self.status_var.set("Mask Preview Ready. White areas will be changed.")
+        
+        # Store as if uploaded
+        # self.mask_image = mask # No, don't store as self.mask_image because that overrides smart logic gen
+        # Just show visualization
 
     def update_strength_lbl(self, event=None):
         val = self.strength_var.get()
@@ -695,7 +776,16 @@ class ZImageApp(ttk.Window):
                 strength = self.strength_var.get()
                 
                 # Check for mask (inpainting mode)
-                if hasattr(self, 'mask_image') and self.mask_image:
+                if self.remix_mode_var.get() in ["outfit", "bg"]:
+                    # Smart Mode Logic
+                    # We don't use manual mask here, we pass logic to backend
+                    self.status_var.set(f"Smart Remix: {self.remix_mode_var.get().upper()}...")
+                    
+                    # Launch Smart Thread directly here or pass special flag?
+                    # Better to inject into params so standard runner handles it?
+                    # No, generate_smart is a different method signature or logic branch.
+                    # Let's handle it by adding a 'smart_mode' key to params
+                elif hasattr(self, 'mask_image') and self.mask_image:
                     mask_input = self.mask_image
                     self.status_var.set("Inpainting with Mask...")
                 else:
@@ -724,7 +814,8 @@ class ZImageApp(ttk.Window):
             "blend_edges": self.blend_edges_var.get() if hasattr(self, 'blend_edges_var') else False,
             "preserve_edges": self.preserve_edges_var.get() if hasattr(self, 'preserve_edges_var') else False,
             "lora_path": os.path.join(os.getcwd(), "models", "loras", self.lora_var.get()) if self.lora_var.get() != "None" else None,
-            "lora_scale": self.lora_scale_var.get() if hasattr(self, 'lora_scale_var') else 0.8
+            "lora_scale": self.lora_scale_var.get() if hasattr(self, 'lora_scale_var') else 0.8,
+            "smart_mode": self.remix_mode_var.get() if hasattr(self, 'remix_mode_var') else "standard"
         }
         
         if hasattr(self, 'style_var'):
@@ -765,7 +856,24 @@ class ZImageApp(ttk.Window):
 
             params["callback"] = step_callback
 
-            image = self.generator.generate(**params)
+            # Branch for Smart Mode
+            # Remove smart_mode from params so it doesn't break standard generator
+            smart_mode = params.pop("smart_mode", "standard")
+            
+            if smart_mode != "standard":
+                print(f"Triggering Smart GEN: {smart_mode}")
+                image = self.generator.generate_smart(
+                    prompt=params["prompt"],
+                    image=params["image"],
+                    mode=smart_mode,
+                    steps=params["steps"],
+                    seed=params["seed"],
+                    strength=params["strength"],
+                    guidance=params["guidance_scale"]
+                )
+            else:
+                # Standard Gen
+                image = self.generator.generate(**params)
             
             # Apply Invisible Watermark logic moved to save_image for speed
             # image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
@@ -895,13 +1003,12 @@ class ZImageApp(ttk.Window):
 
 
 if __name__ == "__main__":
-    app = ZImageApp()
-    app.place_window_center()
-    app.mainloop()
     import sys
     stealth = "--TopSecret" in sys.argv
     if stealth:
         print(">> TOP SECRET MODE ENGAGED: Device Fingerprinting DISABLED <<")
-    
+        
     app = ZImageApp(stealth_mode=stealth)
+    app.place_window_center()
+    app.mainloop()
     app.mainloop()
