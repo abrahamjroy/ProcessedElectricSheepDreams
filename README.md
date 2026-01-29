@@ -8,10 +8,11 @@
 ![Platform](https://img.shields.io/badge/platform-windows-blue?style=for-the-badge&logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/license-MIT-purple?style=for-the-badge)
 
-[![Z-Image-Turbo](https://img.shields.io/badge/%F0%9F%A4%97-Tongyi--MAI%2FZ--Image--Turbo-ffd21e?style=for-the-badge)](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)
-[![Optimized Model](https://img.shields.io/badge/%F0%9F%A4%97-Abrahamm3r%2FZ--Image--SDNQ--uint4--svd--r32-ff6b6b?style=for-the-badge)](https://huggingface.co/Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)
+[![Disty0 Speed Model](https://img.shields.io/badge/%F0%9F%A4%97-Disty0%2FZ--Image--Turbo--SDNQ-ffd21e?style=for-the-badge)](https://huggingface.co/Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32)
+[![Abrahamm3r Quality Model](https://img.shields.io/badge/%F0%9F%A4%97-Abrahamm3r%2FZ--Image--SDNQ-ff6b6b?style=for-the-badge)](https://huggingface.co/Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)
+[![Base Model](https://img.shields.io/badge/%F0%9F%A4%97-Tongyi--MAI%2FZ--Image--Turbo-6BCF7F?style=for-the-badge)](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)
 
-A native desktop application for fast AI image generation with **multiple model options**. Choose between the base Z-Image-Turbo model or the optimized SDNQ-quantized version for maximum efficiency. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing.
+A native desktop application for fast AI image generation with **multiple SDNQ-quantized model options**. Choose between speed-optimized (default), quality-optimized, or base models. Supports Text-to-Image, Image-to-Image transformation, and Inpainting with mask-based editing.
 
 ## Architecture Overview
 
@@ -20,11 +21,13 @@ graph TD
     User[User Input] -->|Prompt & Settings| App[Desktop UI]
     App -->|Model Selection| Chooser{Model Chooser}
     
-    Chooser -->|Default| Model1[Tongyi-MAI/Z-Image-Turbo]
-    Chooser -->|Optimized| Model2[Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32]
+    Chooser -->|Default: Speed| Model1[Disty0/Z-Image-Turbo-SDNQ]
+    Chooser -->|Quality| Model2[Abrahamm3r/Z-Image-SDNQ]
+    Chooser -->|Base| Model3[Tongyi-MAI/Z-Image-Turbo]
     
     Model1 --> VN[VRAM Optimizer]
     Model2 --> VN
+    Model3 --> VN
     
     VN -->|Load & Offload| Pipeline[Z-Image Pipeline]
     
@@ -44,9 +47,10 @@ graph TD
     Output --> Gallery[Gallery View]
     
     style Chooser fill:#ff6b6b
-    style Model2 fill:#ffd93d
+    style Model1 fill:#ffd93d
+    style Model2 fill:#ff6b6b
     
-    Note1[*SDNQ only on quantized models]
+    Note1[*SDNQ on quantized models]
 ```
 
 With accurate text and subject rendering. Includes a MOAP (Mother of All (negative) Prompts) for better rendering.
@@ -57,10 +61,13 @@ With accurate text and subject rendering. Includes a MOAP (Mother of All (negati
 
 **NEW**: Choose your preferred model in the Advanced Configuration section!
 
-| Model | Description | Speed | VRAM Usage | Size |
-|-------|-------------|-------|------------|------|
-| **Tongyi-MAI/Z-Image-Turbo** | Base model with full precision where needed | Fast | ~6GB | ~5GB |
-| **Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32** | Optimized with 4-bit quantization (by @Abrahamm3r) | Faster | ~4GB | ~3GB |
+| Model | Description | Optimization | VRAM | Size |
+|-------|-------------|--------------|------|------|
+| **Disty0/Z-Image-Turbo-SDNQ** ⭐ | Default - 4-bit SDNQ quantized for speed | **Speed** | ~4GB | ~3GB |
+| **Abrahamm3r/Z-Image-SDNQ** | 4-bit SDNQ quantized for quality (by @Abrahamm3r) | **Quality** | ~4GB | ~3GB |
+| **Tongyi-MAI/Z-Image-Turbo** | Base model, full precision | Balanced | ~6GB | ~5GB |
+
+> **Note**: Both Disty0 and Abrahamm3r models use SDNQ 4-bit quantization. Disty0 prioritizes faster generation, while Abrahamm3r prioritizes output quality.
 
 ### How to Switch Models
 
@@ -69,7 +76,7 @@ With accurate text and subject rendering. Includes a MOAP (Mother of All (negati
 3. Select your preferred model from the **Model** dropdown
 4. The selected model will load on startup
 
-> **Note**: Changing the model requires restarting the application. The model selection persists during each session.
+> **Tip**: Changing the model requires restarting the application. The model selection persists during each session.
 
 ---
 
@@ -165,13 +172,13 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 
 ### Advanced Capabilities
 
-- **Model Selection**: Choose between base or optimized quantized models
+- **Model Selection**: Choose between speed-optimized, quality-optimized, or base models
 - **LoRA Support**: Drop `.safetensors` files into `models/loras/` to dynamically load styles (Experimental)
 - **Smart Seed**: Toggle between Random (`-1`) and Fixed seeds with a simple checkbox
 
 ### Technical Features
 
-- SDNQ 4-bit quantization (on supported models)
+- SDNQ 4-bit quantization on optimized models
 - Automatic aspect ratio detection from source images
 - **Styles**: Select from Cinematic, Anime, Cyberpunk, and more for instant aesthetic enhancements
 - **2x AI Upscaling**: Integrated Swin2SR for high-quality resolution boosting
@@ -185,7 +192,7 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 
 - Python 3.10 or higher
 - CUDA-compatible GPU with 8GB+ VRAM (recommended)
-  - Quantized model can run on 6GB VRAM
+  - Quantized models can run on 6GB VRAM
 - Windows, Linux, or macOS
 
 ---
@@ -261,7 +268,7 @@ python app.py
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| **Model** | Choose base or optimized quantized model | Tongyi-MAI/Z-Image-Turbo |
+| **Model** | Choose speed, quality, or base model | Disty0 (Speed) |
 | Prompt | Text description of desired image | Required |
 | Negative Prompt | Elements to exclude from generation | Optional |
 | Steps | Number of inference steps | 9 |
@@ -299,28 +306,35 @@ processed-electric-sheep-dreams/
 
 This application supports multiple models with easy switching:
 
-### Base Model (Default)
-**[Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)**
-- Full precision model optimized for Z-Image architecture
-- Excellent quality and versatility
-- ~5GB download size
+### Speed-Optimized (Default) ⭐
+**[Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32](https://huggingface.co/Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32)**
+- 4-bit SDNQ quantization optimized for maximum speed
+- Fastest generation times
+- ~3GB download, ~4GB VRAM
+- Excellent quality with minimal compromise
 
-### Optimized Quantized Model
+### Quality-Optimized
 **[Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32](https://huggingface.co/Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)**
-- 4-bit SDNQ quantization with SVD rank-32 optimization
-- ~40% smaller download and VRAM footprint
-- Minimal quality loss, maximum efficiency
+- 4-bit SDNQ quantization optimized for maximum quality
+- Superior output fidelity
+- ~3GB download, ~4GB VRAM
 - Created by [@Abrahamm3r](https://huggingface.co/Abrahamm3r)
 
-Models are automatically downloaded on first run. The application intelligently applies SDNQ optimizations only when using quantized models.
+### Base Model
+**[Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)**
+- Full precision model without quantization
+- Original Z-Image architecture
+- ~5GB download, ~6GB VRAM
+
+> **Both Disty0 and Abrahamm3r models use SDNQ quantization**, making them efficient on GPUs with limited VRAM. Models are automatically downloaded on first run.
 
 ### Performance Notes
 
 - First generation may be slower due to model initialization
 - Generation speed depends on resolution and GPU capability
 - Lower dimensions (1024x1024) generate faster than higher resolutions
-- Quantized model offers ~25% faster loading with minimal quality difference
-- **LoRA Note**: The quantized model uses int4 precision. Some standard fp16 LoRAs may not apply correctly or may degrade quality. This feature is experimental.
+- **Speed vs Quality**: Disty0 generates ~15-20% faster; Abrahamm3r produces slightly higher fidelity
+- **LoRA Note**: Quantized models use int4 precision. Some standard fp16 LoRAs may not apply correctly or may degrade quality. This feature is experimental.
 
 ---
 
@@ -332,14 +346,14 @@ Models are automatically downloaded on first run. The application intelligently 
 - Adjust dimensions to multiples of 16 (e.g., 1024, 1280, 1536)
 
 **CUDA out of memory**
-- Switch to the quantized model (Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)
+- Use Disty0 or Abrahamm3r quantized models (lower VRAM)
 - Reduce output resolution
 - Close other GPU-intensive applications
 - The application uses CPU offload to minimize VRAM requirements
 
 **Slow generation**
 - Ensure CUDA is properly installed
-- Try the optimized quantized model
+- Use Disty0 for fastest generation
 - Lower the number of inference steps
 - Reduce image resolution
 
@@ -353,18 +367,19 @@ This project is provided as-is for educational and personal use. The underlying 
 
 ## Acknowledgments & Citations
 
+### Speed-Optimized Model (Default)
+- **[Z-Image-Turbo-SDNQ-uint4-svd-r32](https://huggingface.co/Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32)** by [@Disty0](https://huggingface.co/Disty0)
+  - 4-bit SDNQ quantization optimized for speed
+  - Original SDNQ quantization implementation
+
+### Quality-Optimized Model
+- **[Z-Image-SDNQ-uint4-svd-r32](https://huggingface.co/Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)** by [@Abrahamm3r](https://huggingface.co/Abrahamm3r)
+  - 4-bit SDNQ quantization optimized for quality
+  - Superior output fidelity with efficient inference
+
 ### Base Model
 - **[Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo)** by Tongyi-MAI
-  - Original Z-Image architecture optimized for speed
-
-### Quantized Model
-- **[Z-Image-SDNQ-uint4-svd-r32](https://huggingface.co/Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32)** by [@Abrahamm3r](https://huggingface.co/Abrahamm3r)
-  - 4-bit SDNQ quantization with SVD rank-32 optimization
-  - Enables efficient inference on consumer GPUs
-
-### Quantization Framework
-- **[Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32](https://huggingface.co/Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32)** by Disty0
-  - Original SDNQ quantization methodology
+  - Original Z-Image architecture optimized for turbo generation
 
 ### Infrastructure & Tools
 - **[Diffusers](https://github.com/huggingface/diffusers)** by Hugging Face

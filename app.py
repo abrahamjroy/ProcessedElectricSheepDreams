@@ -343,10 +343,11 @@ class ZImageApp(ttk.Window):
         # Model Selector (New)
         ttk.Label(sliders_frame, text="Model", font=("Consolas", 9), foreground="#888888").grid(row=0, column=0, sticky="w", pady=10)
         
-        self.model_var = tk.StringVar(value="Tongyi-MAI/Z-Image-Turbo")
+        self.model_var = tk.StringVar(value="Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32")
         self.model_combo = ttk.Combobox(sliders_frame, textvariable=self.model_var, values=[
-            "Tongyi-MAI/Z-Image-Turbo",
-            "Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32"
+            "Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32",
+            "Abrahamm3r/Z-Image-SDNQ-uint4-svd-r32",
+            "Tongyi-MAI/Z-Image-Turbo"
         ], state="readonly", bootstyle="dark", width=35)
         self.model_combo.grid(row=0, column=1, padx=10, sticky="ew")
         

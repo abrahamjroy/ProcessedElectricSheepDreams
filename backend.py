@@ -315,7 +315,7 @@ class ImageGenerator:
     Automatically selects optimal device and precision settings.
     """
     
-    def __init__(self, model_id: str = "Tongyi-MAI/Z-Image-Turbo"):
+    def __init__(self, model_id: str = "Disty0/Z-Image-Turbo-SDNQ-uint4-svd-r32"):
         self.model_id = model_id
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
