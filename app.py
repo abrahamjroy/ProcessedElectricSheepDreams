@@ -750,11 +750,23 @@ class ZImageApp(ttk.Window):
         self.gallery_toggle = ttk.Checkbutton(viewport_frame, text="Show Gallery", bootstyle="toolbutton", command=self.toggle_gallery)
         self.gallery_toggle.place(relx=0.5, rely=0.96, anchor="s")
         
-        # Internal scrollable for gallery
-        self.gallery_scroll = ScrolledFrame(self.gallery_frame, scrollheight=100, autohide=True, height=110)
-        self.gallery_scroll.pack(fill=BOTH, expand=True, pady=2)
+        # Internal horizontal scrolling for gallery
+        # Create a canvas with horizontal scrollbar
+        gallery_canvas = tk.Canvas(self.gallery_frame, bg="#000000", highlightthickness=0, height=110)
+        h_scrollbar = ttk.Scrollbar(self.gallery_frame, orient=HORIZONTAL, command=gallery_canvas.xview)
+        gallery_canvas.configure(xscrollcommand=h_scrollbar.set)
         
-        self.gallery_content = self.gallery_scroll # The actual frame to pack thumbs into
+        h_scrollbar.pack(side=BOTTOM, fill=X)
+        gallery_canvas.pack(side=TOP, fill=BOTH, expand=True)
+        
+        # Create a frame inside the canvas to hold gallery items
+        self.gallery_content = ttk.Frame(gallery_canvas)
+        gallery_canvas.create_window((0, 0), window=self.gallery_content, anchor="nw")
+        
+        # Configure canvas scroll region when items are added
+        def configure_scroll_region(event=None):
+            gallery_canvas.configure(scrollregion=gallery_canvas.bbox("all"))
+        self.gallery_content.bind("<Configure>", configure_scroll_region)
         
         # Progress Bar Overlay (Thin line at top of viewport)
         # Standard determinate bar (Green/Default) for generation steps
