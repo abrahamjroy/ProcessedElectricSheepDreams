@@ -1373,7 +1373,9 @@ class ZImageApp(ttk.Window):
                 # Standard Gen
                 image = self.generator.generate(**params)
             
-            # image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
+            # Apply invisible watermark immediately (unless in TopSecret mode)
+            # This ensures even screenshots contain the signature
+            image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
 
             # Store before image for comparison (if img2img)
             if params.get("image") is not None:
@@ -1522,15 +1524,9 @@ class ZImageApp(ttk.Window):
                 metadata.add_text("Software", "Electric Sheep Dreams v0.1")
                 metadata.add_text("Source", "AI Generated (Z-Image-Turbo)")
                 
-                # Apply Watermark on Save (Fastest UX)
-                # This ensures the generated image in memory remains clean/fast
+                # Image is already watermarked during generation
+                # No need to watermark again on save
                 final_image = self.generated_image
-                try:
-                    self.status_var.set("Saving securely (Watermarking)...")
-                    self.update_idletasks() # Force UI update
-                    final_image = self.generator.apply_watermark(self.generated_image, include_id=not self.stealth_mode)
-                except Exception as wm_e:
-                     print(f"Save Watermark Error: {wm_e}")
                      
                 # Add Generation Params if available
                 if hasattr(self, 'last_params'):
