@@ -1210,6 +1210,26 @@ class ZImageApp(ttk.Window):
         # Toggle for upscaling (New control)
         # We can add this to the advanced section or right next to Generate
         
+    def check_nsfw_content(self, text):
+        """Check if text contains NSFW keywords. Returns True if NSFW content detected."""
+        nsfw_keywords = [
+            # Explicit terms
+            'nude', 'naked', 'nipple', 'breast', 'boob', 'tit', 'vagina', 
+            'pussy', 'penis', 'dick', 'cock', 'sex', 'sexual', 'porn', 
+            'nsfw', 'xxx', 'explicit', 'erotic', 'genitals', 'topless',
+            'bottomless', 'underwear exposed', 'bra visible', 'panties',
+            # Add more as needed
+            'fellatio', 'cunnilingus', 'intercourse', 'masturbat',
+            'orgasm', 'arousal', 'hentai', 'ahegao', 'lewd',
+            'nudity', 'undressed', 'unclothed', 'provocative pose'
+        ]
+        
+        text_lower = text.lower()
+        for keyword in nsfw_keywords:
+            if keyword in text_lower:
+                return True
+        return False
+    
     def start_generation(self):
         if not self.generator:
             messagebox.showwarning("Not Ready", "Model still loading...")
@@ -1263,6 +1283,20 @@ class ZImageApp(ttk.Window):
                 else:
                     self.reset_ui()
                     return
+        
+        # NSFW Content Filter for Remix Mode (unless in TopSecret mode)
+        if current_tab_index == 1 and not self.stealth_mode:  # Remix mode and not TopSecret
+            prompt = self.prompt_text.get("1.0", tk.END).strip()
+            
+            if self.check_nsfw_content(prompt):
+                # Block generation and show dialog
+                self.reset_ui()
+                messagebox.showwarning(
+                    "Content Restricted",
+                    "Remix mode cannot be used for NSFW content generation.\n\n"
+                    "Please use appropriate prompts for Remix mode."
+                )
+                return
 
         params = {
             "prompt": self.prompt_text.get("1.0", tk.END).strip(),

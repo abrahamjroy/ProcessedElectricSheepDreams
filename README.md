@@ -170,6 +170,8 @@ The image has a vintage aesthetic, due to the Polaroid format with the character
 - **Gallery Strip**: Persistent session history at the bottom of the viewport
 - **Open Output Folder**: Quick access button 📂 to view your generated files
 
+> **Note**: Remix mode includes content filtering and cannot be used for NSFW image generation. Please use appropriate prompts when working with Remix mode.
+
 ### Advanced Capabilities
 
 - **Model Selection**: Choose between speed-optimized, quality-optimized, or base models
