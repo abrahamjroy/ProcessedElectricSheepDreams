@@ -23,9 +23,19 @@ Thumbs.db
 *.ckpt
 *.bin
 
+# Models directory (large model files downloaded locally)
+models/
+
+# User config and history (privacy)
+.config/
+*.json
+
 # Output images
 output/
 *.png
 *.jpg
 *.jpeg
 !assets/*.png
+
+# Debug files
+debug_*.png

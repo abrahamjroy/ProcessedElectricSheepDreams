@@ -66,7 +66,7 @@ class SmartMasker:
         
         img_arr = np.array(image)
         h, w = img_arr.shape[:2]
-        print(f"[DEBUG] Input image: {w}x{h}, channels={img_arr.shape[2] if len(img_arr.shape) > 2 else 1}, dtype={img_arr.dtype}")
+
         mask = np.zeros((h, w), dtype=np.uint8)
         
         # 1. Try MTCNN (deep learning with 5 facial landmarks)
@@ -82,7 +82,7 @@ class SmartMasker:
             try:
                 # MTCNN expects RGB uint8
                 detections = self.face_detector.detect_faces(img_arr)
-                print(f"[DEBUG] MTCNN detected {len(detections)} face(s)")
+
                 
                 if len(detections) > 0:
                     # Use largest face (highest confidence)
@@ -158,22 +158,7 @@ class SmartMasker:
                         
                     print(f"[SUCCESS] Created MTCNN face mask with {len(contour_points)} contour points")
                     
-                    # Save debug image
-                    try:
-                        debug_img = img_arr.copy()
-                        # Draw bounding box
-                        cv2.rectangle(debug_img, (x, y), (x+fw, y+fh), (0, 255, 0), 2)
-                        # Draw landmarks
-                        for name, (px, py) in keypoints.items():
-                            cv2.circle(debug_img, (int(px), int(py)), 3, (255, 0, 0), -1)
-                        # Draw contour
-                        cv2.polylines(debug_img, [hull], True, (0, 255, 255), 2)
-                        cv2.putText(debug_img, f"MTCNN {confidence*100:.0f}%", (x, y-10), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                        Image.fromarray(debug_img).save("debug_mtcnn_detection.png")
-                        print("[DEBUG] Saved debug_mtcnn_detection.png")
-                    except Exception as e:
-                        print(f"[WARNING] Could not save debug image: {e}")
+
                 else:
                     print("[WARNING] MTCNN detected 0 faces")
                     print("[FALLBACK] Using approximate center region")
@@ -212,7 +197,7 @@ class SmartMasker:
             valid_faces = []
             for idx, params in enumerate(detection_params):
                 faces = self.face_cascade.detectMultiScale(gray, **params)
-                print(f"[DEBUG] Pass {idx+1}: scaleFactor={params['scaleFactor']}, minNeighbors={params['minNeighbors']} -> Found {len(faces)} faces")
+
                 
                 if len(faces) > 0:
                     # Validate faces - must be in upper portion of image
@@ -226,7 +211,7 @@ class SmartMasker:
                             face_roi = gray[y:y+fh, x:x+fw]
                             eyes = eye_cascade.detectMultiScale(face_roi, scaleFactor=1.1, minNeighbors=3)
                             has_eyes = len(eyes) >= 1
-                            print(f"[DEBUG] Face at ({x},{y}) {fw}x{fh}, eyes detected: {len(eyes)}")
+
                         
                         if is_upper_region or has_eyes:
                             valid_faces.append((x, y, fw, fh))
@@ -272,34 +257,14 @@ class SmartMasker:
                     kernel = np.ones((padding*2, padding*2), np.uint8)
                     mask = cv2.dilate(mask, kernel, iterations=1)
                 
-                # Save debug visualization
-                try:
-                    debug_img = img_arr.copy()
-                    cv2.rectangle(debug_img, (x, y), (x+fw, y+fh), (0, 255, 0), 3)
-                    cv2.polylines(debug_img, [hull], True, (255, 0, 0), 3)
-                    cv2.putText(debug_img, "FACE DETECTED", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    Image.fromarray(debug_img).save("debug_haar_detection.png")
-                    print("[DEBUG] Saved debug_haar_detection.png")
-                except:
-                    pass
+
                     
                 print(f"[INFO] Created improved face mask using Haar Cascade + convex hull")
             else:
                 print("[WARNING] Haar Cascade detected 0 valid faces across all parameter sets")
                 print(f"[INFO] Image size: {w}x{h}, detected {len(faces)} candidates but none were valid")
                 
-                # Save debug image showing why detection failed
-                try:
-                    debug_img = img_arr.copy()
-                    # Draw all rejected candidates in red
-                    for (x, y, fw, fh) in faces:
-                        cv2.rectangle(debug_img, (x, y), (x+fw, y+fh), (0, 0, 255), 2)
-                        cv2.putText(debug_img, "REJECTED", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-                    cv2.putText(debug_img, f"NO VALID FACE ({len(faces)} rejected)", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-                    Image.fromarray(debug_img).save("debug_no_face_detected.png")
-                    print("[DEBUG] Saved debug_no_face_detected.png")
-                except:
-                    pass
+
                     
                 print("[FALLBACK] Using approximate center region")
                 center = (w // 2, int(h * 0.25))
@@ -445,60 +410,6 @@ class ImageGenerator:
         
         return result
 
-    def generate_smart(
-        self,
-        prompt: str,
-        image: Image.Image,
-        mode: str = "outfit", # "outfit" or "bg"
-        steps: int = 9,
-        seed: int = -1,
-        strength: float = 0.8, # Higher strength needed for big changes
-        guidance: float = 0.0
-    ):
-        """
-        Smart Remix generation.
-        mode="outfit": Changes clothes, keeps face and BG.
-        mode="bg": Changes BG, keeps subject.
-        """
-        print(f"Smart Remix Mode: {mode}")
-        width, height = image.size
-        
-        # 1. Get Subject Mask (White=Person, Black=BG)
-        subject_mask = self.smart_masker.get_subject_mask(image)
-        
-        # 2. Refine Mask based on Mode
-        final_mask = None
-        
-        if mode == "bg":
-            # For BG change, we want to regenerate Background (Black in subject mask)
-            # So Inpaint Mask should be White for BG, Black for Person.
-            # Subject mask is White=Person. So we Invert it.
-            final_mask = ImageOps.invert(subject_mask)
-            
-        elif mode == "outfit":
-            # For Outfit: Regenerate Body (White), Keep Face (Black), Keep BG (Black).
-            # Start with Subject (White body+face), Black BG.
-            # Get Face Mask (White=Face)
-            face_mask = self.smart_masker.get_face_mask(image)
-            
-            # Subtract Face from Subject using Numpy for precision
-            sub_arr = np.array(subject_mask)
-            face_arr = np.array(face_mask)
-            
-            # Ensure binary (0 or 255)
-            # Thresholding 
-            sub_bin = sub_arr > 127
-            face_bin = face_arr > 127
-            
-            # Logic: We want output to be White where Subject is True AND Face is False.
-            # Output = Subject AND (NOT Face)
-            outfit_bool = np.logical_and(sub_bin, np.logical_not(face_bin))
-            
-            # Convert back to image
-            final_mask = Image.fromarray((outfit_bool * 255).astype(np.uint8))
-            
-        return final_mask
-
     def preview_smart_mask(self, image: Image.Image, mode: str = "outfit") -> Image.Image:
         """
         Generate only the mask for preview purposes.
@@ -596,14 +507,7 @@ class ImageGenerator:
         # Make sure mask is L mode
         final_mask = final_mask.convert("L")
         
-        # DEBUG: Save masks to verify logic
-        try:
-            print("Saving Debug Masks...")
-            subject_mask.save("debug_mask_subject.png")
-            if 'face_mask' in locals(): face_mask.save("debug_mask_face.png")
-            final_mask.save("debug_mask_final.png")
-        except Exception as e:
-            print(f"Debug Save Warning: {e}")
+
         
         return self.generate(
             prompt=prompt,
@@ -682,22 +586,11 @@ class ImageGenerator:
             from PIL import ImageFilter
             composite_mask = resized_mask.filter(ImageFilter.GaussianBlur(radius=8))
         
-        # DEBUG: Save all intermediate images to trace the issue
-        try:
-            resized_image.save("debug_original_resized.png")
-            generated.save("debug_generated.png")
-            composite_mask.save("debug_composite_mask.png")
-            print(f"DEBUG: Mask stats - min={composite_mask.getextrema()[0]}, max={composite_mask.getextrema()[1]}")
-        except Exception as e:
-            print(f"Debug save error: {e}")
+
         
         # Composite: generated where mask is WHITE, original where mask is BLACK
         # This should keep the original face (black area) and use generated body (white area)
         result = Image.composite(generated, resized_image, composite_mask)
-        
-        try:
-            result.save("debug_final_result.png")
-        except: pass
         
         return result
 
@@ -825,7 +718,7 @@ class ImageGenerator:
             # Convert back to PIL RGB
             img_out = Image.fromarray(cv2.cvtColor(img_encoded, cv2.COLOR_BGR2RGB))
             
-            # --- DEBUG: Verify immediately (Fast check) ---
+
             # We keep a simpler check or remove it if speed is critical.
             # Let's keep a minimal log but not break execution if it fails.
             print(f"[Watermark] Applied signature: {wm_msg}")

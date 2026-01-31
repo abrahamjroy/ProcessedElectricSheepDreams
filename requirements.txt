@@ -26,6 +26,7 @@ mediapipe
 
 # GUI Framework
 ttkbootstrap>=1.10.0
+tkinterdnd2
 
 # MCP
 mcp

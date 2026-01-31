@@ -3,11 +3,22 @@ from ttkbootstrap.constants import *
 import tkinter as tk
 from tkinter import filedialog, messagebox
 import threading
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageGrab
 import re
 import os
 import shutil
 from backend import ImageGenerator
+from config_manager import ConfigManager
+from ui_widgets import (KeyboardShortcutsDialog, PromptHistoryPanel, 
+                        GenerationHistoryPanel, ComparisonSlider)
+
+# Try to import drag-and-drop support
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+    HAS_DND = True
+except ImportError:
+    HAS_DND = False
+    print("[INFO] tkinterdnd2 not available. Drag-and-drop disabled.")
 
 # Helper for Collapsible Frame
 class ToggledFrame(ttk.Frame):
@@ -40,8 +51,6 @@ class ToggledFrame(ttk.Frame):
             self.toggle_btn.configure(text='-')
         else:
             self.sub_frame.forget()
-            self.toggle_btn.configure(text='+')
-
             self.toggle_btn.configure(text='+')
             
 # --- Custom KITT Scanner Widget ---
@@ -137,32 +146,28 @@ class ZImageApp(ttk.Window):
         self.stealth_mode = stealth_mode 
         self.gallery_images = [] # List of (image_obj, prompt_str)
         
+        # Initialize config manager
+        self.config = ConfigManager()
+        self.current_theme = self.config.get_setting("theme", "dark")
+        
         self.title("Processed Electric Sheep Dreams")
         self.geometry("1600x1000")  # Larger to ensure viewport is visible
         self.minsize(1400, 900)  # Set minimum size
         
         # --- AMOLED Customizations ---
         # Force background to be pure black for key components
-        style = ttk.Style()
-        style.configure('.', background='#000000') # Global Black
-        style.configure('TFrame', background='#000000')
-        style.configure('TLabelframe', background='#000000') 
-        style.configure('TLabelframe.Label', background='#000000', foreground='#a0a0a0')
-        style.configure('TLabel', background='#000000', foreground='#e0e0e0')
-        style.configure('TButton', font=("Consolas", 10, "bold"))
-        style.configure('TNotebook', background='#000000')
-        style.configure('TNotebook.Tab', background='#222222', foreground='#888888', font=("Consolas", 10))
-        style.map('TNotebook.Tab', background=[('selected', '#444444')], foreground=[('selected', '#ffffff')])
+        self.apply_theme(self.current_theme)
         
         self.generator = None
         self.generated_image = None
         self.source_image = None # For Img2Img
-
+        self.comparison_before = None  # For before/after comparison
         
         # Initialize status var early for threading
         self.status_var = tk.StringVar(value="[SYSTEM] Booting Neural Core...")
         
         self.create_widgets()
+        self.setup_keyboard_shortcuts()
         
         # Start backend loading
         threading.Thread(target=self.init_backend, daemon=True).start()
@@ -174,8 +179,186 @@ class ZImageApp(ttk.Window):
             self.generator = ImageGenerator(model_id=model_id)
             self.status_var.set("System Ready. Waiting for input.")
             self.generate_btn.configure(state=NORMAL)
+        except ImportError as e:
+            error_msg = f"Missing dependency: {str(e)}"
+            self.status_var.set(error_msg)
+            messagebox.showerror(
+                "Dependency Error",
+                f"{error_msg}\n\nPlease install required packages:\n"
+                "pip install transformers diffusers accelerate"
+            )
+        except FileNotFoundError as e:
+            error_msg = "Model files not found"
+            self.status_var.set(error_msg)
+            messagebox.showerror(
+                "Model Not Found",
+                f"Cannot find model files.\n\n{str(e)}\n\n"
+                "The model will download automatically on first use,\n"
+                "but requires an internet connection."
+            )
+        except RuntimeError as e:
+            if "CUDA" in str(e) or "out of memory" in str(e).lower():
+                error_msg = "GPU Memory Error"
+                self.status_var.set(error_msg)
+                messagebox.showerror(
+                    "VRAM Error",
+                    f"Insufficient GPU memory.\n\n{str(e)}\n\n"
+                    "Try closing other applications or reducing image dimensions."
+                )
+            else:
+                error_msg = f"Runtime error: {str(e)}"
+                self.status_var.set(error_msg)
+                messagebox.showerror("Initialization Error", error_msg)
         except Exception as e:
-            self.status_var.set(f"Initialization Failed: {e}")
+            error_msg = f"Initialization Failed: {str(e)}"
+            self.status_var.set(error_msg)
+            messagebox.showerror(
+                "Initialization Error",
+                f"{error_msg}\n\nCheck console for details."
+            )
+            print(f"Detailed error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def apply_theme(self, theme: str):
+        """Apply color theme to the application."""
+        style = ttk.Style()
+        
+        if theme == "light":
+            # Light theme colors
+            style.configure('.', background='#f0f0f0')
+            style.configure('TFrame', background='#f0f0f0')
+            style.configure('TLabel', background='#f0f0f0', foreground='#222222')
+            style.configure('TLabelframe', background='#f0f0f0')
+            style.configure('TLabelframe.Label', background='#f0f0f0', foreground='#444444')
+            style.configure('TNotebook', background='#f0f0f0')
+            style.configure('TNotebook.Tab', background='#d0d0d0', foreground='#444444')
+            style.map('TNotebook.Tab', background=[('selected', '#ffffff')], foreground=[('selected', '#000000')])
+        else:
+            # Dark theme (AMOLED black)
+            style.configure('.', background='#000000')
+            style.configure('TFrame', background='#000000')
+            style.configure('TLabelframe', background='#000000')
+            style.configure('TLabelframe.Label', background='#000000', foreground='#a0a0a0')
+            style.configure('TLabel', background='#000000', foreground='#e0e0e0')
+            style.configure('TButton', font=("Consolas", 10, "bold"))
+            style.configure('TNotebook', background='#000000')
+            style.configure('TNotebook.Tab', background='#222222', foreground='#888888', font=("Consolas", 10))
+            style.map('TNotebook.Tab', background=[('selected', '#444444')], foreground=[('selected', '#ffffff')])
+        
+        self.current_theme = theme
+        self.config.set_setting("theme", theme)
+    
+    def toggle_theme(self):
+        """Toggle between dark and light themes."""
+        new_theme = "light" if self.current_theme == "dark" else "dark"
+        self.apply_theme(new_theme)
+        
+        # Update theme button text
+        if hasattr(self, 'theme_btn'):
+            icon = "🌙" if new_theme == "dark" else "☀️"
+            self.theme_btn.configure(text=icon)
+    
+    def setup_keyboard_shortcuts(self):
+        """Setup global keyboard shortcuts."""
+        # Generation
+        self.bind("<Return>", lambda e: self.start_generation() if self.prompt_text.focus_get() == self.prompt_text else None)
+        self.bind("<Escape>", lambda e: self.reset_ui())
+        self.bind("<Control-g>", lambda e: self.start_generation())
+        
+        # File operations
+        self.bind("<Control-s>", lambda e: self.save_image())
+        self.bind("<Control-Shift-S>", lambda e: self.save_image())  # Same for now
+        self.bind("<Control-o>", lambda e: self.open_output_folder())
+        
+        # Navigation
+        self.bind("<Tab>", lambda e: self._cycle_tabs())
+        self.bind("<Control-h>", lambda e: self.toggle_history_panel())
+        self.bind("<Control-Shift-G>", lambda e: self.toggle_gallery())
+        
+        # Editing
+        self.bind("<Control-v>", lambda e: self.paste_from_clipboard())
+        
+        # View
+        self.bind("<F11>", lambda e: self.toggle_fullscreen())
+        
+        # Help (press Shift+/ which is ?)
+        self.bind("<question>", lambda e: self.show_shortcuts())
+        self.bind("<Shift-slash>", lambda e: self.show_shortcuts())
+        
+        # Advanced
+        self.bind("<Control-e>", lambda e: self.export_workspace())
+        self.bind("<Control-i>", lambda e: self.import_workspace())
+    
+    def show_shortcuts(self):
+        """Show keyboard shortcuts dialog."""
+        KeyboardShortcutsDialog(self)
+    
+    def _cycle_tabs(self):
+        """Cycle through notebook tabs."""
+        current = self.notebook.index(self.notebook.select())
+        next_tab = (current + 1) % self.notebook.index("end")
+        self.notebook.select(next_tab)
+        return "break"  # Prevent default tab behavior
+    
+    def toggle_history_panel(self):
+        """Toggle history panel visibility."""
+        if hasattr(self, 'history_panel_frame'):
+            if self.history_panel_frame.winfo_viewable():
+                self.history_panel_frame.pack_forget()
+            else:
+                self.history_panel_frame.pack(fill=Y, side=LEFT, before=self.sidebar_container)
+    
+    def toggle_fullscreen(self):
+        """Toggle fullscreen mode."""
+        self.attributes("-fullscreen", not self.attributes("-fullscreen"))
+    
+    def paste_from_clipboard(self):
+        """Paste image from clipboard."""
+        try:
+            img = ImageGrab.grabclipboard()
+            if img and isinstance(img, Image.Image):
+                self.source_image = img
+                # Update thumbnail
+                thumb = img.copy()
+                thumb.thumbnail((200, 200))
+                self.tk_thumb = ImageTk.PhotoImage(thumb)
+                if hasattr(self, 'source_thumb_lbl'):
+                    self.source_thumb_lbl.configure(image=self.tk_thumb, text="")
+                self.status_var.set("Image pasted from clipboard")
+                # Switch to remix tab
+                self.notebook.select(1)
+            else:
+                self.status_var.set("No image in clipboard")
+        except Exception as e:
+            self.status_var.set(f"Paste error: {e}")
+    
+    def export_workspace(self):
+        """Export workspace settings."""
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")],
+            initialfile="workspace.json"
+        )
+        if path:
+            if self.config.export_workspace(path):
+                messagebox.showinfo("Export Success", f"Workspace exported to {path}")
+            else:
+                messagebox.showerror("Export Failed", "Could not export workspace")
+    
+    def import_workspace(self):
+        """Import workspace settings."""
+        path = filedialog.askopenfilename(
+            filetypes=[("JSON", "*.json")]
+        )
+        if path:
+            merge = messagebox.askyesno("Import Mode", 
+                                       "Merge with existing settings?\n(No = Replace all)")
+            if self.config.import_workspace(path, merge=merge):
+                messagebox.showinfo("Import Success", 
+                                  "Workspace imported. Please restart the application.")
+            else:
+                messagebox.showerror("Import Failed", "Could not import workspace")
 
     def create_widgets(self):
         # Main Layout
@@ -190,21 +373,82 @@ class ZImageApp(ttk.Window):
         sidebar_container = ttk.Frame(main_pane)
         main_pane.add(sidebar_container, weight=1)
         
-        # FIXED FOOTER (Generatation Controls)
+        # HEADER (Fixed at top, outside scrolled area)
+        header_frame = ttk.Frame(sidebar_container, padding=(20, 10))
+        header_frame.pack(fill=X, side=TOP)
+        
+        # Use grid for better control - title on left, buttons on right
+        header_frame.grid_columnconfigure(0, weight=0)  # Title column - don't expand
+        header_frame.grid_columnconfigure(1, weight=1)  # Spacer - expands
+        header_frame.grid_columnconfigure(2, weight=0)  # Buttons column - don't expand
+        
+        # Title with stealth mode indicator
+        title_text = "ELECTRIC SHEEP DREAMS"
+        if self.stealth_mode:
+            title_text = "🔒 TOP SECRET MODE 🔒"
+        
+        header = ttk.Label(header_frame, text=title_text, 
+                          font=("OCR A Extended", 14, "bold"),  # Smaller font
+                          foreground='#ff0000' if self.stealth_mode else '#00ff00')
+        header.grid(row=0, column=0, sticky='w')
+        
+        # Utility buttons row (always on the right)
+        utils_frame = ttk.Frame(header_frame)
+        utils_frame.grid(row=0, column=2, sticky='e')
+        
+        # Theme toggle
+        theme_icon = "🌙" if self.current_theme == "dark" else "☀️"
+        self.theme_btn = ttk.Button(utils_frame, text=theme_icon, width=3,
+                                   command=self.toggle_theme, bootstyle="secondary-outline")
+        self.theme_btn.pack(side=LEFT, padx=2)
+        
+        # History panel toggle
+        history_btn = ttk.Button(utils_frame, text="📚", width=3,
+                                command=self.toggle_history_panel, bootstyle="secondary-outline")
+        history_btn.pack(side=LEFT, padx=2)
+        
+        # Help/Shortcuts
+        help_btn = ttk.Button(utils_frame, text="?", width=3,
+                             command=self.show_shortcuts, bootstyle="info-outline")
+        help_btn.pack(side=LEFT, padx=2)
+        
+        # Separator
+        separator = ttk.Separator(sidebar_container, orient='horizontal')
+        separator.pack(fill=X, padx=20, pady=(0, 10))
+        
+        # FIXED FOOTER (Generation Controls)
         footer_frame = ttk.Frame(sidebar_container, padding=20)
         footer_frame.pack(fill=X, side=BOTTOM)
         
-        controls_frame = ScrolledFrame(sidebar_container, padding=(20, 20, 20, 0), autohide=True) 
+        # SCROLLED CONTROLS (Between header and footer)
+        controls_frame = ScrolledFrame(sidebar_container, padding=(20, 0, 20, 0), autohide=True) 
         controls_frame.pack(fill=BOTH, expand=True)
         
-        # Header
-        header = ttk.Label(controls_frame, text="ELECTRIC SHEEP DREAMS", font=("OCR A Extended", 20, "bold"), foreground='#00ff00')
-        header.pack(fill=X, pady=(10, 20))
+        # Presets dropdown
+        presets_frame = ttk.Frame(controls_frame)
+        presets_frame.pack(fill=X, pady=(5, 10))
+        
+        ttk.Label(presets_frame, text="Preset:", font=("Consolas", 9), 
+                 foreground="#888888").pack(side=LEFT, padx=(0, 5))
+        
+        preset_names = ["Custom"] + list(self.config.presets.keys())
+        self.preset_var = tk.StringVar(value="Custom")
+        self.preset_combo = ttk.Combobox(presets_frame, textvariable=self.preset_var,
+                                        values=preset_names, state="readonly",
+                                        bootstyle="dark", font=("Consolas", 9))
+        self.preset_combo.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+        self.preset_combo.bind("<<ComboboxSelected>>", self.apply_preset)
+        
+        # Save preset button
+        save_preset_btn = ttk.Button(presets_frame, text="💾", width=3,
+                                    command=self.save_current_preset, bootstyle="success-outline")
+        save_preset_btn.pack(side=LEFT)
 
         # Main Input (Shared)
-        ttk.Label(controls_frame, text="CREATIVE VISION", font=("Consolas", 10, "bold"), foreground="#00cc00").pack(anchor="w")
+        ttk.Label(controls_frame, text="CREATIVE VISION", font=("Consolas", 10, "bold"), 
+                 foreground="#00cc00").pack(anchor="w", pady=(10, 5))
         
-        # Style Preset Selection (New)
+        # Style Preset Selection
         self.style_var = tk.StringVar(value="No Style Preset")
         style_frame = ttk.Frame(controls_frame)
         style_frame.pack(fill=X, pady=(5, 0))
@@ -221,6 +465,7 @@ class ZImageApp(ttk.Window):
         ], state="readonly", bootstyle="dark", font=("Consolas", 9))
         self.style_combo.pack(fill=X)
         
+        
         # Prompt input with scrollbar
         prompt_frame = ttk.Frame(controls_frame)
         prompt_frame.pack(fill=X, pady=(5, 20))
@@ -233,6 +478,25 @@ class ZImageApp(ttk.Window):
                                    yscrollcommand=prompt_scroll.set)
         self.prompt_text.pack(fill=X, side=LEFT, expand=True)
         prompt_scroll.config(command=self.prompt_text.yview)
+        
+        # Prevent scroll propagation to parent ScrolledFrame
+        def on_mousewheel(event):
+            # Check if mouse is over the text widget
+            widget = event.widget
+            if widget == self.prompt_text:
+                # Only scroll the text if there's scrollable content
+                view_range = self.prompt_text.yview()
+                if view_range != (0.0, 1.0):  # Has scrollable content
+                    self.prompt_text.yview_scroll(int(-1*(event.delta/120)), "units")
+                    return "break"  # Stop propagation
+                # If no scrollable content, also stop propagation when over text widget
+                return "break"
+            return None
+        
+        # Bind to text widget AND its parent frame to catch all events
+        self.prompt_text.bind("<MouseWheel>", on_mousewheel)
+        prompt_frame.bind("<MouseWheel>", on_mousewheel)
+        
         
         # TABS: Creation Mode vs Remix Mode
         self.notebook = ttk.Notebook(controls_frame, bootstyle="dark")
@@ -450,7 +714,11 @@ class ZImageApp(ttk.Window):
         self.footer_save_btn.pack(side=LEFT, fill=X, expand=True, padx=(0, 2))
         
         self.upscale_btn = ttk.Button(action_row, text="🔍 UPSCALE 2x", command=self.upscale_action, state=DISABLED, bootstyle="info-outline")
-        self.upscale_btn.pack(side=LEFT, fill=X, expand=True, padx=(2, 0))
+        self.upscale_btn.pack(side=LEFT, fill=X, expand=True, padx=(2, 2))
+        
+        # Compare button (for img2img)
+        self.compare_btn = ttk.Button(action_row, text="🔀", width=3, command=self.show_comparison, state=DISABLED, bootstyle="warning-outline")
+        self.compare_btn.pack(side=LEFT, padx=(0, 0))
 
         # --- Viewport (Right) ---
         viewport_frame = ttk.Frame(main_pane) 
@@ -561,8 +829,197 @@ class ZImageApp(ttk.Window):
         self.seed_var = tk.IntVar(value=-1)
         ttk.Entry(seed_frame, textvariable=self.seed_var, bootstyle="dark").pack(side=LEFT, fill=X, expand=True)
         
-        # Dice Button Removed for Checkbox
-        pass
+        # Initialize history panels (hidden by default)
+        self.history_panel_frame = ttk.Frame(main_pane, width=250, bootstyle="dark")
+        
+        # Add Prompt History
+        self.prompt_history = PromptHistoryPanel(
+            self.history_panel_frame, 
+            self.config,
+            on_select=self.load_prompt_from_history
+        )
+        self.prompt_history.pack(fill=BOTH, expand=True, pady=(0, 10))
+        
+        # Add Generation History
+        self.generation_history = GenerationHistoryPanel(
+            self.history_panel_frame,
+            self.config,
+            on_load=self.load_generation_from_history
+        )
+        self.generation_history.pack(fill=BOTH, expand=True)
+        
+        # History panel starts hidden unless configured otherwise
+        if self.config.get_setting("show_history", False):
+            self.sidebar_container = sidebar_container  # Store ref for toggle
+            self.history_panel_frame.pack(fill=Y, side=LEFT, before=sidebar_container)
+        
+        # Store reference to sidebar container for later
+        self.sidebar_container = sidebar_container
+        
+        # Drag-and-drop support (if available)
+        if HAS_DND:
+            self.setup_drag_drop()
+    
+    def setup_drag_drop(self):
+        """Setup drag-and-drop for image uploads."""
+        try:
+            # Make the source thumbnail label a drop target
+            if hasattr(self, 'source_thumb_lbl'):
+                self.source_thumb_lbl.drop_target_register(DND_FILES)
+                self.source_thumb_lbl.dnd_bind('<<Drop>>', self.on_drop_image)
+        except Exception as e:
+            print(f"Drag-and-drop setup failed: {e}")
+    
+    def on_drop_image(self, event):
+        """Handle dropped image files."""
+        files = self.tk.splitlist(event.data)
+        if files:
+            filepath = files[0]
+            # Remove curly braces if present (Windows)
+            filepath = filepath.strip('{}')
+            
+            if filepath.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                try:
+                    from PIL import ImageOps
+                    img = Image.open(filepath).convert("RGB")
+                    self.source_image = ImageOps.exif_transpose(img)
+                    
+                    # Update thumbnail
+                    thumb = self.source_image.copy()
+                    thumb.thumbnail((200, 200))
+                    self.tk_thumb = ImageTk.PhotoImage(thumb)
+                    self.source_thumb_lbl.configure(image=self.tk_thumb, text="")
+                    
+                    # Auto-detect dimensions
+                    self._auto_set_dimensions_from_source()
+                    
+                    # Switch to remix tab
+                    self.notebook.select(1)
+                    
+                    self.status_var.set(f"Loaded: {os.path.basename(filepath)}")
+                except Exception as e:
+                    self.status_var.set(f"Error loading image: {e}")
+    
+    def _auto_set_dimensions_from_source(self):
+        """Auto-set dimensions from source image."""
+        if not self.source_image:
+            return
+            
+        src_w, src_h = self.source_image.size
+        self.source_aspect_ratio = src_w / src_h
+        
+        max_dim = 1536
+        if max(src_w, src_h) > max_dim:
+            scale = max_dim / max(src_w, src_h)
+            src_w = int(src_w * scale)
+            src_h = int(src_h * scale)
+        
+        src_w = src_w - (src_w % 16)
+        src_h = src_h - (src_h % 16)
+        
+        self.aspect_var.set("Custom")
+        self._updating_dims = True
+        self.width_var.set(src_w)
+        self.height_var.set(src_h)
+        self._updating_dims = False
+        
+        self.status_var.set(f"Source: {self.source_image.size[0]}×{self.source_image.size[1]} → {src_w}×{src_h}")
+        self.check_preview_state()
+    
+    def apply_preset(self, event=None):
+        """Apply selected preset parameters."""
+        preset_name = self.preset_var.get()
+        
+        if preset_name == "Custom":
+            return
+        
+        preset = self.config.get_preset(preset_name)
+        if not preset:
+            return
+        
+        # Apply preset values
+        self._updating_dims = True
+        
+        if "width" in preset:
+            self.width_var.set(preset["width"])
+        if "height" in preset:
+            self.height_var.set(preset["height"])
+        if "style" in preset:
+            self.style_var.set(preset["style"])
+        if "steps" in preset:
+            self.steps_var.set(preset["steps"])
+        if "guidance_scale" in preset:
+            self.cfg_var.set(preset["guidance_scale"])
+        
+        self._updating_dims = False
+        
+        self.status_var.set(f"Applied preset: {preset_name}")
+    
+    def save_current_preset(self):
+        """Save current parameters as a preset."""
+        from tkinter import simpledialog
+        
+        name = simpledialog.askstring("Save Preset", "Enter preset name:")
+        if not name:
+            return
+        
+        # Gather current params
+        params = {
+            "width": self.width_var.get(),
+            "height": self.height_var.get(),
+            "style": self.style_var.get(),
+            "steps": self.steps_var.get(),
+            "guidance_scale": self.cfg_var.get()
+        }
+        
+        self.config.add_preset(name, params)
+        
+        # Update preset combo
+        preset_names = ["Custom"] + list(self.config.presets.keys())
+        self.preset_combo.configure(values=preset_names)
+        self.preset_var.set(name)
+        
+        messagebox.showinfo("Success", f"Preset '{name}' saved!")
+    
+    def load_prompt_from_history(self, prompt_data):
+        """Load a prompt from history."""
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", prompt_data["prompt"])
+        
+        if "negative_prompt" in prompt_data and prompt_data["negative_prompt"]:
+            self.neg_prompt_text.delete("1.0", tk.END)
+            self.neg_prompt_text.insert("1.0", prompt_data["negative_prompt"])
+        
+        self.status_var.set("Loaded prompt from history")
+    
+    def load_generation_from_history(self, gen_data):
+        """Load generation parameters from history."""
+        # Load prompt
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", gen_data.get("prompt", ""))
+        
+        if gen_data.get("negative_prompt"):
+            self.neg_prompt_text.delete("1.0", tk.END)
+            self.neg_prompt_text.insert("1.0", gen_data["negative_prompt"])
+        
+        # Load parameters
+        self._updating_dims = True
+        self.width_var.set(gen_data.get("width", 1024))
+        self.height_var.set(gen_data.get("height", 1024))
+        self.steps_var.set(gen_data.get("steps", 9))
+        self.cfg_var.set(gen_data.get("guidance", 0.0))
+        
+        if gen_data.get("seed", -1) != -1:
+            self.random_seed_var.set(False)
+            self.seed_var.set(gen_data["seed"])
+            self.seed_entry.configure(state=NORMAL)
+        
+        if gen_data.get("style"):
+            self.style_var.set(gen_data["style"])
+        
+        self._updating_dims = False
+        
+        self.status_var.set("Loaded parameters from history")
 
     def open_output_folder(self):
         # Default save loc is current dir, but let's try to open where user last saved or cwd
@@ -754,8 +1211,15 @@ class ZImageApp(ttk.Window):
         # We can add this to the advanced section or right next to Generate
         
     def start_generation(self):
-        if not self.generator: return
+        if not self.generator:
+            messagebox.showwarning("Not Ready", "Model still loading...")
+            return
+        
         self.generate_btn.configure(state=DISABLED)
+
+        # Start animated seed cycling if random seed is enabled
+        if self.random_seed_var.get():
+            self.animate_seed_numbers()
         
         # Show specific progress
         self.progress.place(relx=0, rely=0, relwidth=1) 
@@ -851,7 +1315,6 @@ class ZImageApp(ttk.Window):
             def step_callback(pipe, step, timestep, callback_kwargs):
                 # Ensure step is int
                 current_step = int(step)
-                # print(f"DEBUG: Step {current_step}/{steps}") 
                 self.after(0, lambda: self.progress.configure(value=current_step + 1))
                 return callback_kwargs
 
@@ -876,11 +1339,50 @@ class ZImageApp(ttk.Window):
                 # Standard Gen
                 image = self.generator.generate(**params)
             
-            # Apply Invisible Watermark logic moved to save_image for speed
             # image = self.generator.apply_watermark(image, include_id=not self.stealth_mode)
 
+            # Store before image for comparison (if img2img)
+            if params.get("image") is not None:
+                self.comparison_before = params["image"]
+            
             self.generated_image = image
             self.last_params = params  # Store for metadata persistence
+            
+            # Add to history ONLY if NOT in stealth mode
+            if not self.stealth_mode:
+                # Add to prompt history
+                self.config.add_prompt(
+                    params.get("prompt", ""),
+                    params.get("negative_prompt", ""),
+                    favorite=False
+                )
+                
+                # Add to generation history
+                gen_mode = "inpaint" if params.get("mask_image") is not None else (
+                    "img2img" if params.get("image") is not None else "txt2img"
+                )
+                
+                self.config.add_generation({
+                    "prompt": params.get("prompt", ""),
+                    "negative_prompt": params.get("negative_prompt", ""),
+                    "model": self.model_var.get(),
+                    "width": params.get("width", 1024),
+                    "height": params.get("height", 1024),
+                    "steps": params.get("steps", 9),
+                    "guidance_scale": params.get("guidance_scale", 0.0),
+                    "seed": params.get("seed", -1),
+                    "strength": params.get("strength", 0.0),
+                    "style": self.style_var.get(),
+                    "lora": self.lora_var.get(),
+                    "mode": gen_mode
+                })
+                
+                # Refresh history panels
+                if hasattr(self, 'prompt_history'):
+                    self.after(0, self.prompt_history.refresh)
+                if hasattr(self, 'generation_history'):
+                    self.after(0, self.generation_history.refresh)
+            
             self.after(0, self.display_image, image)
             self.after(0, lambda: self.add_to_gallery(image, params.get("prompt", "")))
             self.after(0, lambda: self.status_var.set("Rendering Complete."))
@@ -897,6 +1399,43 @@ class ZImageApp(ttk.Window):
         self.kitt_scanner.stop()
         self.kitt_scanner.place_forget()
         self.generate_btn.configure(state=NORMAL)
+        
+        # Stop seed animation if running
+        if hasattr(self, 'seed_animating') and self.seed_animating:
+            self.seed_animating = False
+    
+    def animate_seed_numbers(self):
+        """Animate seed numbers cycling like a slot machine."""
+        import random
+        self.seed_animating = True
+        self.seed_animation_count = 0
+        
+        # Temporarily enable seed entry to show animation
+        was_disabled = str(self.seed_entry.cget('state')) == 'disabled'
+        if was_disabled:
+            self.seed_entry.configure(state='normal')
+            # Also change background to show it's active
+            self.seed_entry.configure(style='TEntry')
+        
+        def cycle_seed():
+            if not self.seed_animating or self.seed_animation_count > 100:  # Increased cycles
+                # Restore disabled state if it was disabled
+                if was_disabled and self.random_seed_var.get():
+                    self.seed_var.set(-1)
+                    self.seed_entry.configure(state='disabled')
+                return
+            
+            # Show random seed values cycling - make them look different each time
+            random_seed = random.randint(10000000, 99999999)
+            self.seed_var.set(random_seed)
+            self.seed_animation_count += 1
+            
+            # Continue animation with faster speed for more dramatic effect
+            self.after(30, cycle_seed)  # Faster: 30ms instead of 50ms
+        
+        cycle_seed()
+        
+        cycle_seed()
 
     def display_image(self, image):
         c_width, c_height = self.canvas.winfo_width(), self.canvas.winfo_height()
@@ -915,8 +1454,17 @@ class ZImageApp(ttk.Window):
         if hasattr(self, 'upscale_btn'):
             self.upscale_btn.configure(state=NORMAL)
         
+        # Enable compare button if we have a before image
+        if hasattr(self, 'compare_btn') and hasattr(self, 'comparison_before') and self.comparison_before:
+            self.compare_btn.configure(state=NORMAL)
+        
         if hasattr(self, 'remix_btn'):
             self.remix_btn.configure(state=NORMAL)
+    
+    def show_comparison(self):
+        """Show before/after comparison slider."""
+        if hasattr(self, 'comparison_before') and self.comparison_before and self.generated_image:
+            ComparisonSlider(self, self.comparison_before, self.generated_image)
 
     def save_image(self):
         if self.generated_image:
