@@ -1647,16 +1647,109 @@ class ZImageApp(ttk.Window):
 
 if __name__ == "__main__":
     import sys
+    import hashlib
+    import tkinter as tk
+    from tkinter import messagebox
     
     # Try to load local configuration (not in git)
     stealth = False
     try:
         import local_config
-        stealth = local_config.STEALTH_MODE
-        if stealth:
-            print(">> STEALTH MODE ENABLED: Device Fingerprinting and Filters DISABLED <<")
+        
+        # Local config exists - show PIN dialog for stealth mode
+        if hasattr(local_config, 'STEALTH_MODE_AVAILABLE') and local_config.STEALTH_MODE_AVAILABLE:
+            VALID_PIN_HASH = "ad34f18dea2b9ebbdc778885bc2f96ec62faf2527dc907c96084ddb9a2390625"
+            
+            # Create PIN dialog
+            pin_root = tk.Tk()
+            pin_root.withdraw()  # Hide the main window
+            
+            # Simple PIN entry dialog
+            def check_pin():
+                pin = pin_entry.get()
+                pin_hash = hashlib.sha256(pin.encode()).hexdigest()
+                
+                if pin_hash == VALID_PIN_HASH:
+                    nonlocal stealth
+                    stealth = True
+                    pin_dialog.destroy()
+                    pin_root.destroy()
+                else:
+                    attempts_label.config(text="❌ Invalid PIN. Try again.", foreground="#ff3333")
+                    pin_entry.delete(0, tk.END)
+            
+            # Create dialog window
+            pin_dialog = tk.Toplevel(pin_root)
+            pin_dialog.title("Authentication Required")
+            pin_dialog.geometry("350x180")
+            pin_dialog.resizable(False, False)
+            pin_dialog.configure(bg="#1a1a1a")
+            
+            # Center on screen
+            pin_dialog.update_idletasks()
+            x = (pin_dialog.winfo_screenwidth() // 2) - (350 // 2)
+            y = (pin_dialog.winfo_screenheight() // 2) - (180 // 2)
+            pin_dialog.geometry(f"+{x}+{y}")
+            
+            # Title
+            title_label = tk.Label(pin_dialog, text="🔒 Stealth Mode Authentication", 
+                                  font=("Consolas", 12, "bold"), 
+                                  bg="#1a1a1a", fg="#00ff00")
+            title_label.pack(pady=15)
+            
+            # Instructions
+            info_label = tk.Label(pin_dialog, text="Enter PIN code:", 
+                                 font=("Consolas", 10), 
+                                 bg="#1a1a1a", fg="#cccccc")
+            info_label.pack(pady=5)
+            
+            # PIN entry
+            pin_entry = tk.Entry(pin_dialog, font=("Consolas", 14, "bold"), 
+                                justify="center", show="●", width=12,
+                                bg="#2a2a2a", fg="#00ff00", 
+                                insertbackground="#00ff00")
+            pin_entry.pack(pady=10)
+            pin_entry.focus_set()
+            
+            # Bind Enter key
+            pin_entry.bind("<Return>", lambda e: check_pin())
+            
+            # Attempts label
+            attempts_label = tk.Label(pin_dialog, text="", 
+                                     font=("Consolas", 9), 
+                                     bg="#1a1a1a", fg="#888888")
+            attempts_label.pack(pady=5)
+            
+            # Buttons frame
+            btn_frame = tk.Frame(pin_dialog, bg="#1a1a1a")
+            btn_frame.pack(pady=10)
+            
+            # OK button
+            ok_btn = tk.Button(btn_frame, text="Unlock", command=check_pin,
+                              font=("Consolas", 10, "bold"),
+                              bg="#00aa00", fg="#ffffff",
+                              width=10, cursor="hand2")
+            ok_btn.pack(side=tk.LEFT, padx=5)
+            
+            # Cancel button (run in normal mode)
+            cancel_btn = tk.Button(btn_frame, text="Cancel", 
+                                   command=lambda: [pin_dialog.destroy(), pin_root.destroy()],
+                                   font=("Consolas", 10),
+                                   bg="#666666", fg="#ffffff",
+                                   width=10, cursor="hand2")
+            cancel_btn.pack(side=tk.LEFT, padx=5)
+            
+            # Handle window close
+            pin_dialog.protocol("WM_DELETE_WINDOW", lambda: [pin_dialog.destroy(), pin_root.destroy()])
+            
+            # Show dialog and wait
+            pin_dialog.wait_window()
+            
+            if stealth:
+                print(">> STEALTH MODE ENABLED: Device Fingerprinting DISABLED <<")
+        
     except ImportError:
-        # No local config - normal mode
+        # No local config - normal mode with full features
         pass
         
     app = ZImageApp(stealth_mode=stealth)

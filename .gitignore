@@ -42,3 +42,4 @@ debug_*.png
 
 # Local private configuration (never commit)
 local_config.py
+generate_key.py
