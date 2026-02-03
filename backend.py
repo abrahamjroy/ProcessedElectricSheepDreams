@@ -410,11 +410,11 @@ class ImageGenerator:
         
         return result
 
-    def preview_smart_mask(self, image: Image.Image, mode: str = "outfit") -> Image.Image:
+    def preview_smart_mask(self, image: Image.Image, mode: str = "outfit", padding: int = 15, feather: int = 8) -> Image.Image:
         """
         Generate only the mask for preview purposes.
         """
-        print(f"Previewing Mask Mode: {mode}")
+        print(f"Previewing Mask Mode: {mode} (padding={padding}, feather={feather})")
         width, height = image.size
         
         try:
@@ -425,8 +425,9 @@ class ImageGenerator:
             
             if mode == "bg":
                 final_mask = ImageOps.invert(subject_mask)
+            
             elif mode == "outfit":
-                face_mask = self.smart_masker.get_face_mask(image)
+                face_mask = self.smart_masker.get_face_mask(image, padding=padding)
                 
                 # Logic repeated from generate_smart for consistency
                 import numpy as np
@@ -440,29 +441,79 @@ class ImageGenerator:
                 outfit_bool = np.logical_and(sub_bin, np.logical_not(face_bin))
                 
                 final_mask = Image.fromarray((outfit_bool * 255).astype(np.uint8))
+            
+            elif mode == "face":
+                final_mask = self.smart_masker.get_face_mask(image, padding=padding)
+            
+            elif mode == "hair":
+                # Hair mode logic (same as in generate_smart)
+                import numpy as np
+                import cv2
                 
+                face_mask = self.smart_masker.get_face_mask(image, padding=0)
+                face_arr = np.array(face_mask)
+                
+                face_pixels = np.where(face_arr > 127)
+                if len(face_pixels[0]) > 0:
+                    top_y = np.min(face_pixels[0])
+                    center_x = np.mean(face_pixels[1]).astype(int)
+                    face_width = np.max(face_pixels[1]) - np.min(face_pixels[1])
+                    
+                    hair_mask = np.zeros_like(face_arr)
+                    hair_top = max(0, top_y - int(height * 0.15))
+                    hair_width = int(face_width * 0.8)
+                    
+                    cv2.ellipse(
+                        hair_mask,
+                        (center_x, int((hair_top + top_y) / 2)),
+                        (hair_width // 2, abs(top_y - hair_top) // 2),
+                        0, 0, 360, 255, -1
+                    )
+                    
+                    final_mask = Image.fromarray(hair_mask)
+                else:
+                    sub_arr = np.array(subject_mask)
+                    hair_mask = np.zeros_like(sub_arr)
+                    hair_mask[0:int(height * 0.2), :] = sub_arr[0:int(height * 0.2), :]
+                    final_mask = Image.fromarray(hair_mask)
+            
+            elif mode == "full":
+                final_mask = subject_mask
+            
+            # Apply feathering
+            if final_mask and feather > 0:
+                from PIL import ImageFilter
+                final_mask = final_mask.filter(ImageFilter.GaussianBlur(radius=feather))
+            
             if final_mask:
                 return final_mask
             return Image.new("L", (width, height), 0) # Empty fallback
             
         except Exception as e:
             print(f"Mask Preview Error: {e}")
+            import traceback
+            traceback.print_exc()
             return Image.new("L", (width, height), 128) # Grey error mask
 
     def generate_smart(
         self,
         prompt: str,
         image: Image.Image,
-        mode: str = "outfit", # "outfit" or "bg"
+        mode: str = "outfit", # "outfit", "bg", "face", "hair", or "full"
         steps: int = 9,
         seed: int = -1,
         strength: float = 0.8, # Higher strength needed for big changes
-        guidance: float = 0.0
+        guidance: float = 5.0,  # Increased from 0.0 for better prompt adherence
+        mask_padding: int = 15,  # Mask expansion/dilation
+        mask_feather: int = 8    # Mask blur/feathering
     ):
         """
-        Smart Remix generation.
+        Smart Remix generation with multiple modes.
         mode="outfit": Changes clothes, keeps face and BG.
         mode="bg": Changes BG, keeps subject.
+        mode="face": Changes face only, keeps outfit and BG.
+        mode="hair": Changes hair only, keeps face and BG.
+        mode="full": Replaces entire subject.
         """
         print(f"Smart Remix Mode: {mode}")
         width, height = image.size
@@ -482,7 +533,7 @@ class ImageGenerator:
             
         elif mode == "outfit":
             # For Outfit: Regenerate Body (White), Keep Face (Black), Keep BG (Black).
-            face_mask = self.smart_masker.get_face_mask(image)
+            face_mask = self.smart_masker.get_face_mask(image, padding=mask_padding)
             
             # Use numpy for precise boolean mask logic
             import numpy as np
@@ -499,15 +550,61 @@ class ImageGenerator:
             
             final_mask = Image.fromarray((outfit_bool * 255).astype(np.uint8))
         
+        elif mode == "face":
+            # For Face: Regenerate Face (White), Keep Body and BG (Black)
+            final_mask = self.smart_masker.get_face_mask(image, padding=mask_padding)
+        
+        elif mode == "hair":
+            # For Hair: Get face mask and expand upward to include hair region
+            import numpy as np
+            import cv2
+            
+            face_mask = self.smart_masker.get_face_mask(image, padding=0)
+            face_arr = np.array(face_mask)
+            
+            # Find the top of the face mask
+            face_pixels = np.where(face_arr > 127)
+            if len(face_pixels[0]) > 0:
+                top_y = np.min(face_pixels[0])
+                center_x = np.mean(face_pixels[1]).astype(int)
+                face_width = np.max(face_pixels[1]) - np.min(face_pixels[1])
+                
+                # Create hair region: expand upward and slightly wider
+                hair_mask = np.zeros_like(face_arr)
+                hair_top = max(0, top_y - int(height * 0.15))  # Extend up 15% of image height
+                hair_width = int(face_width * 0.8)  # 80% of face width
+                
+                # Draw ellipse for hair region
+                cv2.ellipse(
+                    hair_mask,
+                    (center_x, int((hair_top + top_y) / 2)),  # Center
+                    (hair_width // 2, abs(top_y - hair_top) // 2),  # Axes
+                    0, 0, 360, 255, -1
+                )
+                
+                final_mask = Image.fromarray(hair_mask)
+            else:
+                # Fallback: use top 20% of subject
+                sub_arr = np.array(subject_mask)
+                hair_mask = np.zeros_like(sub_arr)
+                hair_mask[0:int(height * 0.2), :] = sub_arr[0:int(height * 0.2), :]
+                final_mask = Image.fromarray(hair_mask)
+        
+        elif mode == "full":
+            # For Full Subject: Use entire subject mask
+            final_mask = subject_mask
+        
         if final_mask is None:
              # Fallback
              final_mask = Image.new("L", (width, height), 255)
 
-        # 3. Call standard inpaint
+        # 3. Apply mask feathering if requested
+        if mask_feather > 0:
+            from PIL import ImageFilter
+            final_mask = final_mask.filter(ImageFilter.GaussianBlur(radius=mask_feather))
+    
         # Make sure mask is L mode
         final_mask = final_mask.convert("L")
-        
-
         
         return self.generate(
             prompt=prompt,
@@ -632,6 +729,174 @@ class ImageGenerator:
                 gen_arr[:, :, c] = np.where(mask_arr > 0.5, adjusted, gen_arr[:, :, c])
         
         return Image.fromarray(np.clip(gen_arr, 0, 255).astype(np.uint8))
+
+    def _rgb_to_lab(self, rgb):
+        """Convert RGB to LAB color space."""
+        import numpy as np
+        
+        # Normalize RGB to [0, 1]
+        rgb_normalized = rgb / 255.0
+        
+        # Apply gamma correction (sRGB to linear RGB)
+        mask = rgb_normalized > 0.04045
+        rgb_linear = np.where(
+            mask,
+            np.power((rgb_normalized + 0.055) / 1.055, 2.4),
+            rgb_normalized / 12.92
+        )
+        
+        # Convert to XYZ
+        # Using D65 illuminant transformation matrix
+        transform_matrix = np.array([
+            [0.4124564, 0.3575761, 0.1804375],
+            [0.2126729, 0.7151522, 0.0721750],
+            [0.0193339, 0.1191920, 0.9503041]
+        ])
+        
+        xyz = np.dot(rgb_linear, transform_matrix.T)
+        
+        # Normalize by D65 white point
+        xyz /= np.array([0.95047, 1.0, 1.08883])
+        
+        # Convert XYZ to LAB
+        mask = xyz > 0.008856
+        f = np.where(
+            mask,
+            np.power(xyz, 1/3),
+            (7.787 * xyz) + (16/116)
+        )
+        
+        lab = np.zeros_like(rgb)
+        lab[:, :, 0] = (116 * f[:, :, 1]) - 16  # L
+        lab[:, :, 1] = 500 * (f[:, :, 0] - f[:, :, 1])  # A
+        lab[:, :, 2] = 200 * (f[:, :, 1] - f[:, :, 2])  # B
+        
+        return lab
+
+    def _lab_to_rgb(self, lab):
+        """Convert LAB to RGB color space."""
+        import numpy as np
+        
+        # LAB to XYZ
+        fy = (lab[:, :, 0] + 16) / 116
+        fx = lab[:, :, 1] / 500 + fy
+        fz = fy - lab[:, :, 2] / 200
+        
+        # Apply inverse transformation
+        mask_x = fx > 0.206893
+        mask_y = fy > 0.206893
+        mask_z = fz > 0.206893
+        
+        xyz = np.zeros_like(lab)
+        xyz[:, :, 0] = np.where(mask_x, np.power(fx, 3), (fx - 16/116) / 7.787)
+        xyz[:, :, 1] = np.where(mask_y, np.power(fy, 3), (fy - 16/116) / 7.787)
+        xyz[:, :, 2] = np.where(mask_z, np.power(fz, 3), (fz - 16/116) / 7.787)
+        
+        # Denormalize by D65 white point
+        xyz *= np.array([0.95047, 1.0, 1.08883])
+        
+        # XYZ to RGB (inverse transform)
+        inv_transform_matrix = np.array([
+            [ 3.2404542, -1.5371385, -0.4985314],
+            [-0.9692660,  1.8760108,  0.0415560],
+            [ 0.0556434, -0.2040259,  1.0572252]
+        ])
+        
+        rgb_linear = np.dot(xyz, inv_transform_matrix.T)
+        
+        # Apply inverse gamma correction (linear RGB to sRGB)
+        mask = rgb_linear > 0.0031308
+        rgb = np.where(
+            mask,
+            1.055 * np.power(rgb_linear, 1/2.4) - 0.055,
+            12.92 * rgb_linear
+        )
+        
+        # Convert to [0, 255]
+        rgb = rgb * 255.0
+        
+        return rgb
+
+    def _match_histograms(self, source_channel, reference_channel, mask):
+        """Match histogram of source to reference in masked regions."""
+        import numpy as np
+        
+        # Extract masked pixels
+        source_masked = source_channel[mask]
+        reference_masked = reference_channel[mask]
+        
+        if len(source_masked) == 0 or len(reference_masked) == 0:
+            return source_channel
+        
+        # Compute CDFs (Cumulative Distribution Functions)
+        source_values, source_counts = np.unique(source_masked, return_counts=True)
+        reference_values, reference_counts = np.unique(reference_masked, return_counts=True)
+        
+        source_cdf = np.cumsum(source_counts).astype(np.float64)
+        source_cdf /= source_cdf[-1]
+        
+        reference_cdf = np.cumsum(reference_counts).astype(np.float64)
+        reference_cdf /= reference_cdf[-1]
+        
+        # Create lookup table via interpolation
+        interp_values = np.interp(source_cdf, reference_cdf, reference_values)
+        
+        # Map source values to reference distribution
+        result = source_channel.copy()
+        for i, val in enumerate(source_values):
+            result[source_channel == val] = interp_values[i]
+        
+        # Apply only in masked regions
+        result = np.where(mask, result, source_channel)
+        
+        return result
+    
+    def _match_histograms_weighted(self, source_channel, reference_channel, mask, weight_map):
+        """Match histogram with per-pixel weights to ignore colored regions."""
+        import numpy as np
+        
+        # Extract masked pixels with their weights
+        masked_pixels = mask & (weight_map > 0.2)  # Only use pixels with reasonable weight
+        
+        source_masked = source_channel[masked_pixels]
+        reference_masked = reference_channel[masked_pixels]
+        weights = weight_map[masked_pixels]
+        
+        if len(source_masked) == 0 or len(reference_masked) == 0:
+            return source_channel
+        
+        # Weighted histogram matching
+        # For reference: weight pixels when computing histogram
+        ref_bins = 256
+        ref_hist, ref_edges = np.histogram(reference_masked, bins=ref_bins, weights=weights, density=True)
+        ref_cdf = np.cumsum(ref_hist)
+        ref_cdf = ref_cdf / ref_cdf[-1]  # Normalize
+        
+        # For source: standard histogram
+        src_hist, src_edges = np.histogram(source_masked, bins=ref_bins, density=True)
+        src_cdf = np.cumsum(src_hist)
+        src_cdf = src_cdf / src_cdf[-1]
+        
+        # Map source CDF to reference CDF
+        # For each source bin, find corresponding reference bin
+        result = source_channel.copy()
+        
+        # Interpolate to create mapping
+        ref_bin_centers = (ref_edges[:-1] + ref_edges[1:]) / 2
+        src_bin_centers = (src_edges[:-1] + src_edges[1:]) / 2
+        
+        mapped_values = np.interp(src_cdf, ref_cdf, ref_bin_centers)
+        
+        # Apply mapping to all source pixels
+        for i, src_val in enumerate(src_bin_centers):
+            mask_region = np.abs(source_channel - src_val) < (src_edges[1] - src_edges[0]) / 2
+            result[mask_region] = mapped_values[i]
+        
+        # Only apply in masked regions
+        result = np.where(mask, result, source_channel)
+        
+        return result
+
 
     def smart_resize(self, image: Image.Image, max_dim: int = 1536) -> Image.Image:
         """Resize image to safe dimensions (capped size, multiple of 16)."""

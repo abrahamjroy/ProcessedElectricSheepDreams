@@ -37,7 +37,7 @@ class KeyboardShortcutsDialog(tk.Toplevel):
         
         shortcuts = {
             "Generation": [
-                ("Enter", "Trigger generation (in prompt box)"),
+                ("Shift+Enter", "Trigger generation"),
                 ("Esc", "Cancel current generation"),
                 ("Ctrl+G", "Generate with current settings"),
             ],
