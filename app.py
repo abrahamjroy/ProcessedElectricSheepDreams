@@ -797,7 +797,7 @@ class ZImageApp(ttk.Window):
             gallery_canvas.configure(scrollregion=gallery_canvas.bbox("all"))
         self.gallery_content.bind("<Configure>", configure_scroll_region)
         
-        # Progress Bar Overlay (Thin line at top of viewport)
+        # Progress Bar Overlay (at top of viewport)
         # Standard determinate bar (Green/Default) for generation steps
         self.progress = ttk.Progressbar(viewport_frame, mode='determinate', bootstyle="success", length=300)
         
@@ -1664,14 +1664,16 @@ if __name__ == "__main__":
             pin_root = tk.Tk()
             pin_root.withdraw()  # Hide the main window
             
+            # Use a list to make stealth mutable in nested function
+            stealth_state = [False]
+            
             # Simple PIN entry dialog
             def check_pin():
                 pin = pin_entry.get()
                 pin_hash = hashlib.sha256(pin.encode()).hexdigest()
                 
                 if pin_hash == VALID_PIN_HASH:
-                    nonlocal stealth
-                    stealth = True
+                    stealth_state[0] = True
                     pin_dialog.destroy()
                     pin_root.destroy()
                 else:
@@ -1745,6 +1747,8 @@ if __name__ == "__main__":
             # Show dialog and wait
             pin_dialog.wait_window()
             
+            # Update stealth based on PIN result
+            stealth = stealth_state[0]
             if stealth:
                 print(">> STEALTH MODE ENABLED: Device Fingerprinting DISABLED <<")
         
@@ -1753,5 +1757,5 @@ if __name__ == "__main__":
         pass
         
     app = ZImageApp(stealth_mode=stealth)
-    app.place_window_center()
+    app.state('zoomed')  # Start maximized
     app.mainloop()

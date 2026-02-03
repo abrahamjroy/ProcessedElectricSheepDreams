@@ -94,53 +94,27 @@ class SmartMasker:
                     
                     print(f"[SUCCESS] MTCNN detected face with {confidence*100:.1f}% confidence")
                     
-                    # Create face contour from bounding box + landmarks
-                    x, y, fw, fh = box
-                    
-                    # Build high-resolution face contour with interpolated points
-                    # Using more points for smoother curves
-                    contour_points = []
-                    
-                    # Extract landmark positions
+                    # Calculate head tilt angle from eye positions
                     left_eye = keypoints['left_eye']
                     right_eye = keypoints['right_eye']
-                    nose = keypoints['nose']
-                    mouth_left = keypoints['mouth_left']
-                    mouth_right = keypoints['mouth_right']
                     
-                    center_x = x + fw//2
+                    dy = right_eye[1] - left_eye[1]
+                    dx = right_eye[0] - left_eye[0]
+                    angle = np.degrees(np.arctan2(dy, dx))
                     
-                    # RIGHT SIDE (top to bottom) - 8 points
-                    contour_points.append([center_x, y])  # Top forehead center
-                    contour_points.append([int(center_x + fw*0.25), y])  # Top right forehead
-                    contour_points.append([int(x + fw*0.9), int(y + fh*0.1)])  # Right forehead corner
-                    contour_points.append([x + fw, int(right_eye[1] - 10)])  # Above right eye
-                    contour_points.append([x + fw, int(right_eye[1])])  # Right eye level
-                    contour_points.append([int(x + fw*0.95), int((right_eye[1] + mouth_right[1])/2)])  # Right cheek upper
-                    contour_points.append([int(mouth_right[0]) + 15, int(mouth_right[1])]) # Right mouth area
-                    contour_points.append([int(x + fw*0.85), int(y + fh*0.9)])  # Right jaw
+                    print(f"[INFO] Head tilt detected: {angle:.1f}°")
                     
-                    # BOTTOM (right to left) - 5 points
-                    contour_points.append([int(x + fw*0.65), y + fh])  # Right chin
-                    contour_points.append([center_x, int(y + fh*1.05)])  # Center chin (slightly below)
-                    contour_points.append([int(x + fw*0.35), y + fh])  # Left chin
+                    # Calculate face center and ellipse size
+                    x, y, fw, fh = box
+                    center_x = x + fw // 2
+                    center_y = y + fh // 2
                     
-                    # LEFT SIDE (bottom to top) - 8 points
-                    contour_points.append([int(x + fw*0.15), int(y + fh*0.9)])  # Left jaw
-                    contour_points.append([int(mouth_left[0]) - 15, int(mouth_left[1])])  # Left mouth area
-                    contour_points.append([int(x + fw*0.05), int((left_eye[1] + mouth_left[1])/2)])  # Left cheek upper
-                    contour_points.append([x, int(left_eye[1])])  # Left eye level
-                    contour_points.append([x, int(left_eye[1] - 10)])  # Above left eye
-                    contour_points.append([int(x + fw*0.1), int(y + fh*0.1)])  # Left forehead corner
-                    contour_points.append([int(center_x - fw*0.25), y])  # Top left forehead
+                    # Create ellipse axes (slightly larger for better coverage)
+                    # Width is based on face width, height is slightly taller for forehead/chin
+                    axes = (int(fw * 0.65), int(fh * 0.75))
                     
-                    contour = np.array(contour_points, dtype=np.int32)
-                    
-                    # Create convex hull for smooth contour
-                    hull = cv2.convexHull(contour)
-                    
-                    # Draw filled polygon
-                    cv2.fillPoly(mask, [hull], 255)
+                    # Draw rotated ellipse mask
+                    cv2.ellipse(mask, (center_x, center_y), axes, angle, 0, 360, 255, -1)
                     
                     # Smooth the mask edges
                     # 1. Apply Gaussian blur to soften edges
@@ -156,7 +130,7 @@ class SmartMasker:
                         kernel = np.ones((padding*2, padding*2), np.uint8)
                         mask = cv2.dilate(mask, kernel, iterations=1)
                         
-                    print(f"[SUCCESS] Created MTCNN face mask with {len(contour_points)} contour points")
+                    print(f"[SUCCESS] Created rotated MTCNN face mask at {angle:.1f}° tilt")
                     
 
                 else:
@@ -617,7 +591,7 @@ class ImageGenerator:
             strength=strength,
             guidance_scale=guidance, 
             blend_edges=True, # Critical for mask blending
-            color_match=True # Critical for lighting consistency
+            color_match=False # Disabled to prevent color bleeding from original image
         )
 
     def _generate_img2img(self, args, image, width, height, strength, color_match=False, preserve_edges=False):
